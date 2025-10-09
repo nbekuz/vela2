@@ -98,8 +98,6 @@ class _RemindersPageState extends State<RemindersPage> {
         'platform': platform,
       };
 
-      print('🔵 API REQUEST: POST /auth/create-device-token/');
-      print('🔵 Request Data: $data');
 
       await ApiService.request(
         url: 'auth/create-device-token/',
@@ -259,12 +257,7 @@ class _RemindersPageState extends State<RemindersPage> {
             print('DEBUG: Device token for disabling: $deviceToken');
 
             if (deviceToken != null && deviceToken.isNotEmpty) {
-              print('DEBUG: Making API call to disable notifications...');
-              print(
-                '🔵 API REQUEST: PUT /auth/update-device-token-status/$deviceToken/',
-              );
-              print('🔵 Request Data: {"is_active": false}');
-
+            
               await ApiService.request(
                 url: 'auth/update-device-token-status/$deviceToken/',
                 method: 'PUT',

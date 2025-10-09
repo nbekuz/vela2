@@ -560,6 +560,29 @@ class _LoginPageState extends State<LoginPage> {
                                                 const SizedBox(height: 16),
                                               ],
 
+                                              // Forgot password link
+                                              Center(
+                                                child: GestureDetector(
+                                                  onTap: () {
+                                                    Navigator.pushNamed(
+                                                      context,
+                                                      '/forgot-password',
+                                                    );
+                                                  },
+                                                  child: Text(
+                                                    'Are you forgot password?',
+                                                    style: TextStyle(
+                                                      fontSize: 16.sp,
+                                                      color: Colors.white,
+                                                      fontFamily: 'Satoshi',
+                                                      fontWeight: FontWeight.bold,
+                                                      decoration: TextDecoration.underline,
+                                                      decorationColor: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+
                                               const SizedBox(height: 8),
                                             ],
                                           ),

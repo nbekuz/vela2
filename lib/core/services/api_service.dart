@@ -105,9 +105,6 @@ class ApiService {
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
   }) async {
-    print('🔍 API Request: $method $url');
-    print('🔍 API Data: $data');
-    print('🔍 API Open: $open');
     
     final options = Options(
       method: method,
@@ -123,8 +120,6 @@ class ApiService {
         options: options,
       );
       
-      print('🔍 API Response Status: ${response.statusCode}');
-      print('🔍 API Response Data: ${response.data}');
       
       return response;
     } catch (e) {

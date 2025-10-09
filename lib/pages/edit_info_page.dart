@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -308,6 +307,12 @@ class _EditInfoPageState extends State<EditInfoPage> {
                                     EditInfoButtons(
                                       isSaving: _isSaving,
                                       onSave: _handleSave,
+                                      onChangePassword: () {
+                                        Navigator.pushNamed(
+                                          context,
+                                          '/change-password',
+                                        );
+                                      },
                                     ),
                                     SizedBox(height: 20),
                                   ],

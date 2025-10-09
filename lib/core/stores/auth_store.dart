@@ -1147,4 +1147,74 @@ class AuthStore extends ChangeNotifier {
       return null;
     }
   }
+
+  // Forgot password action with API call
+  Future<void> forgotPassword({
+    required String email,
+    VoidCallback? onSuccess,
+  }) async {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await ApiService.request(
+        url: 'auth/forgot-password/',
+        method: 'POST',
+        data: {'email': email},
+        open: true, // Bu endpoint uchun token kerak emas
+      );
+
+      onSuccess?.call();
+    } catch (e) {
+      String errorMessage = 'Failed to send password reset email. Please try again.';
+
+      if (e.toString().contains('400')) {
+        errorMessage = 'User with this email address not found.';
+      } else if (e.toString().contains('401')) {
+        errorMessage = 'Unauthorized. Please try again.';
+      } else if (e.toString().contains('500')) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+
+      setError(errorMessage);
+      // Toast will be shown from the UI layer
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Change password action with API call
+  Future<void> changePassword({
+    required String newPassword,
+    VoidCallback? onSuccess,
+  }) async {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await ApiService.request(
+        url: 'auth/update-password/',
+        method: 'PATCH',
+        data: {'new_password': newPassword},
+        open: false, // Bu endpoint uchun token kerak
+      );
+
+      onSuccess?.call();
+    } catch (e) {
+      String errorMessage = 'Failed to change password. Please try again.';
+
+      if (e.toString().contains('400')) {
+        errorMessage = 'Invalid password format.';
+      } else if (e.toString().contains('401')) {
+        errorMessage = 'Unauthorized. Please login again.';
+      } else if (e.toString().contains('500')) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+
+      setError(errorMessage);
+      // Toast will be shown from the UI layer
+    } finally {
+      setLoading(false);
+    }
+  }
 }

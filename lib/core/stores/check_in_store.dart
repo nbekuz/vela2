@@ -50,7 +50,7 @@ class CheckInStore extends ChangeNotifier {
 
       // Check if the request was successful
       if (response.statusCode == 200 || response.statusCode == 201) {
-        
+        print('Check-in response: $response');
         // Refresh user data to update check-ins
         if (authStore != null) {
           await authStore.getUserDetails();

@@ -12,6 +12,8 @@ import 'core/services/app_lifecycle_service.dart';
 import 'pages/loading_screen.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/auth/register_page.dart';
+import 'pages/auth/forgot_password_page.dart';
+import 'pages/auth/change_password_page.dart';
 import 'pages/dashboard/main.dart';
 import 'pages/auth/starter_page.dart';
 import 'pages/auth/onboarding_page_1.dart';
@@ -172,6 +174,8 @@ class MyApp extends StatelessWidget {
                 '/onboarding-4': (context) => const OnboardingPage4(),
                 '/login': (context) => const LoginPage(),
                 '/register': (context) => const RegisterPage(),
+                '/forgot-password': (context) => const ForgotPasswordPage(),
+                '/change-password': (context) => const ChangePasswordPage(),
                 '/plan': (context) => const PlanPage(),
                 '/generator': (context) => const GeneratorPage(),
                 '/vault': (context) => const VaultPage(),
