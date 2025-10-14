@@ -71,11 +71,8 @@ class _HappyStepState extends State<HappyStep> {
   }
 
   void _onTextChanged(String value) {
-    final happiness = value
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    // Treat the entire text as a single happiness entry, don't split by commas
+    final happiness = value.trim().isNotEmpty ? <String>[value.trim()] : <String>[];
 
     final updatedProfile = widget.profileData.copyWith(happiness: happiness);
     widget.onProfileDataChanged(updatedProfile);

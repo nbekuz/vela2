@@ -155,7 +155,6 @@ class SettingsPage extends StatelessWidget {
         'onTap': () => _navigateToHelpSupport(context),
       },
       {'title': 'About Vela', 'onTap': () => _navigateToAboutVela(context)},
-      {'title': 'Test Token Cleanup', 'onTap': () => _testTokenCleanup(context)},
       {'title': 'Log out', 'onTap': () => _handleLogout(context)},
     ];
 

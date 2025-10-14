@@ -60,6 +60,17 @@ bool shouldNavigateToProfile = false;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Lock orientation to portrait only (no landscape)
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+  
+  // Force portrait mode and prevent any rotation
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual, 
+    overlays: SystemUiOverlay.values
+  );
+
   // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -121,88 +132,101 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.white,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: Colors.white,
-        systemNavigationBarIconBrightness: Brightness.light,
-      ),
-      child: MultiProvider(
-        providers: [
-          ChangeNotifierProvider.value(value: authStore),
-          ChangeNotifierProvider.value(value: meditationStore),
-          ChangeNotifierProvider.value(value: likeStore),
-          ChangeNotifierProvider.value(value: checkInStore),
-        ],
-        child: ScreenUtilInit(
-          designSize: Size(
-            390,
-            844,
-          ), // ← здесь укажи размер твоего дизайна (из Figma и т.п.)
-          minTextAdapt: true,
-          splitScreenMode: true,
-          builder: (context, child) {
-            return MaterialApp(
-              navigatorKey: navigatorKey,
-              title: AppConstants.appName,
-              theme: AppTheme.lightTheme.copyWith(
-                pageTransitionsTheme: const PageTransitionsTheme(
-                  builders: {
-                    TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
-                    TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        // Force portrait orientation
+        if (orientation != Orientation.portrait) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            SystemChrome.setPreferredOrientations([
+              DeviceOrientation.portraitUp,
+            ]);
+          });
+        }
+        
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.white,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+            systemNavigationBarColor: Colors.white,
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
+          child: MultiProvider(
+            providers: [
+              ChangeNotifierProvider.value(value: authStore),
+              ChangeNotifierProvider.value(value: meditationStore),
+              ChangeNotifierProvider.value(value: likeStore),
+              ChangeNotifierProvider.value(value: checkInStore),
+            ],
+            child: ScreenUtilInit(
+              designSize: Size(
+                390,
+                844,
+              ), // ← здесь укажи размер твоего дизайна (из Figma и т.п.)
+              minTextAdapt: true,
+              splitScreenMode: true,
+              builder: (context, child) {
+                return MaterialApp(
+                  navigatorKey: navigatorKey,
+                  title: AppConstants.appName,
+                  theme: AppTheme.lightTheme.copyWith(
+                    pageTransitionsTheme: const PageTransitionsTheme(
+                      builders: {
+                        TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+                        TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
+                      },
+                    ),
+                  ),
+                  darkTheme: AppTheme.darkTheme.copyWith(
+                    pageTransitionsTheme: const PageTransitionsTheme(
+                      builders: {
+                        TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+                        TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
+                      },
+                    ),
+                  ),
+                  debugShowCheckedModeBanner: false,
+                  initialRoute: initialRoute,
+                  routes: {
+                    '/loading': (context) => const LoadingScreen(),
+                    '/starter': (context) => const StarterPage(),
+                    '/onboarding-1': (context) => const OnboardingPage1(),
+                    '/onboarding-2': (context) => const OnboardingPage2(),
+                    '/onboarding-3': (context) => const OnboardingPage3(),
+                    '/onboarding-4': (context) => const OnboardingPage4(),
+                    '/login': (context) => const LoginPage(),
+                    '/register': (context) => const RegisterPage(),
+                    '/forgot-password': (context) => const ForgotPasswordPage(),
+                    '/change-password': (context) => const ChangePasswordPage(),
+                    '/plan': (context) => const PlanPage(),
+                    '/generator': (context) => const GeneratorPage(),
+                    '/vault': (context) => const VaultPage(),
+                    '/dashboard': (context) => const DashboardMainPage(),
+                    '/my-meditations': (context) => MyMeditationsPage(
+                      onAudioPlay: (meditationId) {
+                        globalMeditationId = meditationId;
+                        Navigator.pushReplacementNamed(context, '/dashboard');
+                      },
+                    ),
+                    '/archive': (context) => const ArchivePage(),
+                    '/reminders': (context) => const RemindersPage(),
+                    '/edit-info': (context) => const EditInfoPage(),
+                    '/audio-player': (context) {
+                      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+                      return DashboardAudioPlayer(
+                        meditationId: args?['meditationId'] ?? '',
+                        title: args?['title'],
+                        description: args?['description'],
+                        imageUrl: args?['imageUrl'],
+                      );
+                    },
                   },
-                ),
-              ),
-              darkTheme: AppTheme.darkTheme.copyWith(
-                pageTransitionsTheme: const PageTransitionsTheme(
-                  builders: {
-                    TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
-                    TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
-                  },
-                ),
-              ),
-              debugShowCheckedModeBanner: false,
-              initialRoute: initialRoute,
-              routes: {
-                '/loading': (context) => const LoadingScreen(),
-                '/starter': (context) => const StarterPage(),
-                '/onboarding-1': (context) => const OnboardingPage1(),
-                '/onboarding-2': (context) => const OnboardingPage2(),
-                '/onboarding-3': (context) => const OnboardingPage3(),
-                '/onboarding-4': (context) => const OnboardingPage4(),
-                '/login': (context) => const LoginPage(),
-                '/register': (context) => const RegisterPage(),
-                '/forgot-password': (context) => const ForgotPasswordPage(),
-                '/change-password': (context) => const ChangePasswordPage(),
-                '/plan': (context) => const PlanPage(),
-                '/generator': (context) => const GeneratorPage(),
-                '/vault': (context) => const VaultPage(),
-                '/dashboard': (context) => const DashboardMainPage(),
-                '/my-meditations': (context) => MyMeditationsPage(
-                  onAudioPlay: (meditationId) {
-                    globalMeditationId = meditationId;
-                    Navigator.pushReplacementNamed(context, '/dashboard');
-                  },
-                ),
-                '/archive': (context) => const ArchivePage(),
-                '/reminders': (context) => const RemindersPage(),
-                '/edit-info': (context) => const EditInfoPage(),
-                '/audio-player': (context) {
-                  final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-                  return DashboardAudioPlayer(
-                    meditationId: args?['meditationId'] ?? '',
-                    title: args?['title'],
-                    description: args?['description'],
-                    imageUrl: args?['imageUrl'],
-                  );
-                },
+                );
               },
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

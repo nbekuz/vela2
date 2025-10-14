@@ -74,7 +74,7 @@ class _CheckInAppBar extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Connect with your inner journey today',
+            'Connect with your inner journey today' ,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Satoshi',
@@ -444,7 +444,7 @@ class _CheckInButtonsState extends State<_CheckInButtons> {
                         ),
                       )
                     : const Text(
-                        'Complete Check-In',
+                        'Complete Check-In ',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -454,43 +454,43 @@ class _CheckInButtonsState extends State<_CheckInButtons> {
                       ),
               ),
             ),
-            // const SizedBox(height: 12),
-            // SizedBox(
-            //   width: double.infinity,
-            //   height: 56,
-            //   child: OutlinedButton(
-            //     onPressed: () {
-            //       Navigator.of(context).pushReplacement(
-            //         MaterialPageRoute(
-            //           builder: (context) => const DirectRitualPage(),
-            //         ),
-            //       );
-            //     },
-            //     style: OutlinedButton.styleFrom(
-            //       backgroundColor: Colors.white,
-            //       side: BorderSide.none,
-            //       shape: RoundedRectangleBorder(
-            //         borderRadius: BorderRadius.circular(32),
-            //       ),
-            //     ),
-            //     child: Row(
-            //       mainAxisAlignment: MainAxisAlignment.center,
-            //       children: const [
-            //         Text(
-            //           'Generate New Meditation',
-            //           style: TextStyle(
-            //             color: Color(0xFF3B6EAA),
-            //             fontSize: 16,
-            //             fontFamily: 'Satoshi',
-            //             fontWeight: FontWeight.bold,
-            //           ),
-            //         ),
-            //         SizedBox(width: 8),
-            //         Icon(Icons.auto_awesome, color: Color(0xFF3B6EAA)),
-            //       ],
-            //     ),
-            //   ),
-            // ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => const DirectRitualPage(),
+                    ),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  side: BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(32),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Text(
+                      'Generate New Meditation',
+                      style: TextStyle(
+                        color: Color(0xFF3B6EAA),
+                        fontSize: 16,
+                        fontFamily: 'Satoshi',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.auto_awesome, color: Color(0xFF3B6EAA)),
+                  ],
+                ),
+              ),
+            ),
           ],
         );
       },

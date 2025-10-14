@@ -303,16 +303,22 @@ class MeditationStore extends ChangeNotifier {
       data["happiness"] = (happiness != null && happiness.isNotEmpty)
           ? happiness
           : "moderate";
+          
+      // Debug: Print the actual values being sent to API
+      print('🔍 Debug - API data being sent:');
+      print('  dream: "$dream"');
+      print('  goals: "$goals"');
+      print('  happiness: "$happiness"');
 
       final response = await ApiService.request(
         url: 'auth/meditation/external/',
         method: 'POST',
         data: data,
       );
+      
 
       // Handle external meditation response
       final responseData = response.data;
-      print('responseData: $responseData');
       if (responseData != null && responseData['success'] == true) {
         final fileUrl = responseData['file_url'] ?? responseData['file'];
         final ritualTypeName = responseData['ritual_type_name'];
@@ -356,11 +362,9 @@ class MeditationStore extends ChangeNotifier {
           // Continue without setting profile if parsing fails
         }
       } else {
-
         setError(
           'Meditation generation failed: ${responseData?['error'] ?? 'Unknown error'}. Please try again.',
         );
-    
 
         // Show toast and navigate to dashboard
         Fluttertoast.showToast(
@@ -408,7 +412,6 @@ class MeditationStore extends ChangeNotifier {
 
       // Call error callback if provided
       if (onError != null) {
-
         Future.delayed(const Duration(seconds: 2), () {
           onError();
         });
@@ -513,7 +516,7 @@ class MeditationStore extends ChangeNotifier {
         url: 'auth/delete-meditation/$meditationId/',
         method: 'DELETE',
       );
-      
+
       print('✅ Meditation deleted successfully from server');
       // Clear local meditation data after successful deletion
       completeReset();

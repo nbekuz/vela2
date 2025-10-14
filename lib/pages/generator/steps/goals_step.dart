@@ -46,7 +46,7 @@ class _GoalsStepState extends State<GoalsStep> {
     super.initState();
     if (widget.profileData.goals != null &&
         widget.profileData.goals!.isNotEmpty) {
-      _controller.text = widget.profileData.goals!.join(', ');
+      _controller.text = widget.profileData.goals!.join(' ');
     }
   }
 
@@ -71,11 +71,8 @@ class _GoalsStepState extends State<GoalsStep> {
   }
 
   void _onGoalsChanged(String value) {
-    final goals = value
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    // Treat the entire text as a single goal, don't split by commas
+    final goals = value.trim().isNotEmpty ? <String>[value.trim()] : <String>[];
 
     final updatedProfile = widget.profileData.copyWith(goals: goals);
     widget.onProfileDataChanged(updatedProfile);

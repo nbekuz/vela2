@@ -46,7 +46,7 @@ class _VisionStepState extends State<VisionStep> {
     super.initState();
     if (widget.profileData.dream != null &&
         widget.profileData.dream!.isNotEmpty) {
-      _controller.text = widget.profileData.dream!.join(', ');
+      _controller.text = widget.profileData.dream!.join(' ');
     }
   }
 
@@ -71,11 +71,8 @@ class _VisionStepState extends State<VisionStep> {
   }
 
   void _onDreamChanged(String value) {
-    final dreams = value
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    // Treat the entire text as a single dream, don't split by commas
+    final dreams = value.trim().isNotEmpty ? <String>[value.trim()] : <String>[];
 
     final updatedProfile = widget.profileData.copyWith(dream: dreams);
     widget.onProfileDataChanged(updatedProfile);

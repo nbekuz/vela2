@@ -590,7 +590,7 @@ class _DashboardCheckInPageState extends State<DashboardCheckInPage> {
                                                           ),
                                                     )
                                                   : const Text(
-                                                      'Complete Check-In',
+                                                      'Complete Check-In ',
                                                       style: TextStyle(
                                                         color: Colors.white,
                                                         fontFamily: 'Satoshi',

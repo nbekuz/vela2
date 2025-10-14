@@ -66,12 +66,22 @@ class _GeneratorPageState extends State<GeneratorPage> {
 
   void generateMeditation() async {
     final meditationStore = context.read<MeditationStore>();
+    
+    // Debug: Print the actual values being sent
+    print('🔍 Debug - Profile data being sent:');
+    print('  dream: ${profileData.dream}');
+    print('  goals: ${profileData.goals}');
+    print('  happiness: ${profileData.happiness}');
+    print('  dream joined: ${_getJoinedValue(profileData.dream)}');
+    print('  goals joined: ${_getJoinedValue(profileData.goals)}');
+    print('  happiness joined: ${_getJoinedValue(profileData.happiness)}');
+    
     await meditationStore.postCombinedProfile(
       gender: profileData.gender?.toLowerCase() ?? '',
-      dream: _getFirstValue(profileData.dream),
-      goals: _getFirstValue(profileData.goals),
+      dream: _getJoinedValue(profileData.dream),
+      goals: _getJoinedValue(profileData.goals),
       ageRange: profileData.ageRange ?? '',
-      happiness: _getFirstValue(profileData.happiness),
+      happiness: _getJoinedValue(profileData.happiness),
       name: profileData.name,
       description: profileData.description,
       ritualType: _getFirstValue(profileData.ritualType),
@@ -98,7 +108,12 @@ class _GeneratorPageState extends State<GeneratorPage> {
     );
   }
 
-  // Helper method to get first value from list or empty string
+  // Helper method to get all values joined from list or empty string
+  String _getJoinedValue(List<String>? list) {
+    return (list?.isNotEmpty ?? false) ? list!.join(', ') : '';
+  }
+  
+  // Helper method to get first value from list or empty string (for single values)
   String _getFirstValue(List<String>? list) {
     return (list?.isNotEmpty ?? false) ? list!.first : '';
   }
