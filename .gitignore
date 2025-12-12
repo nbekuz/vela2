@@ -43,12 +43,42 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/app/build/
+android/app/build/
+android/build/
+android/.gradle/
+
+# Android build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
 
 # iOS build artifacts
 ios/build/
 ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Flutter/flutter_export_environment.sh
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
 *.xcworkspace
 !default.xcworkspace
+*.xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
 
 # Firebase configuration files
 # android/app/google-services.json
