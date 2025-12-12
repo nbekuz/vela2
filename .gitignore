@@ -44,6 +44,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# iOS build artifacts
+ios/build/
+ios/Pods/
+*.xcworkspace
+!default.xcworkspace
+
 # Firebase configuration files
 # android/app/google-services.json
 # ios/Runner/GoogleService-Info.plist
