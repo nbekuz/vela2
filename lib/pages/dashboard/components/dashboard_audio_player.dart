@@ -300,6 +300,15 @@ class _DashboardAudioPlayerState extends State<DashboardAudioPlayer> {
     });
   }
 
+  void _handleSeek(Duration position) async {
+    if (_audioPlayer != null) {
+      await _audioPlayer!.seek(position);
+      setState(() {
+        _position = position;
+      });
+    }
+  }
+
   void _toggleLike() async {
     final meditationStore = context.read<MeditationStore>();
     final likeStore = context.read<LikeStore>();
