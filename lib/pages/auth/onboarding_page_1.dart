@@ -265,7 +265,7 @@ class _OnboardingPage1State extends State<OnboardingPage1> {
                             strokeWidth: 2,
                           ),
                         )
-                      : Text('Next', style: ButtonStyles.primaryText),
+                      : Text('Next ', style: ButtonStyles.primaryText),
                 ),
 
                 const SizedBox(height: 20),

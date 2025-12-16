@@ -981,7 +981,13 @@ class AuthStore extends ChangeNotifier {
 
       // Re-initialize API Service to ensure interceptors work
       ApiService.init();
-      final endpoint = 'auth/user-detail-update/';
+      
+      // Django requires trailing slash for PUT requests with APPEND_SLASH enabled
+      String endpoint = 'auth/user-detail-update/';
+      
+      print('🔄 [updateUserDetail] Trying endpoint: $endpoint');
+      print('🔄 [updateUserDetail] Full URL will be: ${ApiService.baseUrl}$endpoint');
+      
       final response = await ApiService.request(
         url: endpoint,
         method: 'PUT',
@@ -1017,17 +1023,26 @@ class AuthStore extends ChangeNotifier {
       print('❌ [updateUserDetail] API Error: $e');
 
       // Response ma'lumotlarini olish (agar mavjud bo'lsa)
-      if (e.toString().contains('404')) {
-        print(
-          '❌ [updateUserDetail] 404 Error - Endpoint topilmadi: auth/user-detail-update/',
-        );
+      if (e is DioException && e.response != null) {
+        print('❌ [updateUserDetail] DioException details:');
+        print('❌ [updateUserDetail] Status code: ${e.response?.statusCode}');
+        print('❌ [updateUserDetail] Response data: ${e.response?.data}');
+        print('❌ [updateUserDetail] Request URL: ${e.requestOptions.uri}');
+        print('❌ [updateUserDetail] Request method: ${e.requestOptions.method}');
+        print('❌ [updateUserDetail] Request headers: ${e.requestOptions.headers}');
+        
+        if (e.response?.statusCode == 404) {
+          print('❌ [updateUserDetail] 404 Error - Endpoint topilmadi');
         print('❌ [updateUserDetail] Base URL: ${ApiService.baseUrl}');
-        print(
-          '❌ [updateUserDetail] Full URL: ${ApiService.baseUrl}auth/user-detail-update/',
-        );
-        print(
-          '❌ [updateUserDetail] Expected: http://31.97.98.47:9000/api/auth/user-detail-update/',
-        );
+          print('❌ [updateUserDetail] Tried endpoint: auth/user-detail-update');
+          print('❌ [updateUserDetail] Full URL tried: ${ApiService.baseUrl}auth/user-detail-update');
+          print('❌ [updateUserDetail] Browser shows 401 (endpoint exists but needs auth)');
+          print('❌ [updateUserDetail] This suggests URL format issue or method not supported');
+        }
+      } else if (e.toString().contains('404')) {
+        print('❌ [updateUserDetail] 404 Error detected in exception string');
+        print('❌ [updateUserDetail] Base URL: ${ApiService.baseUrl}');
+        print('❌ [updateUserDetail] Endpoint: auth/user-detail-update');
       }
 
       developer.log('❌ Update user detail error: $e');

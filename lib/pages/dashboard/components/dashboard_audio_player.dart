@@ -904,13 +904,13 @@ class _DashboardAudioPlayerState extends State<DashboardAudioPlayer> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                // Show slider first (while file is loading), then show wave effect when file is loaded
-                                if (_isAudioReady && _pcmChunks.isNotEmpty && !_isLoadingWaveform) ...[
-                                  // Wave visualization with scrubbing - shown after file is loaded
+                                // Wave visualization with scrubbing
+                                // Show waveform if we have chunks or are loading, otherwise show fallback slider
+                                if (_isAudioReady && (_pcmChunks.isNotEmpty || _isLoadingWaveform)) ...[
                                   LayoutBuilder(
                                     builder: (context, constraints) {
                                       return SizedBox(
-                                        height: 40,
+                                        height: 120,
                                         child: GestureDetector(
                                           onTapDown: _isAudioReady
                                               ? (details) async {
@@ -983,18 +983,23 @@ class _DashboardAudioPlayerState extends State<DashboardAudioPlayer> {
                                                   }
                                                 }
                                               : null,
-                                          child: WaveVisualization(
-                                            pcmChunks: _pcmChunks,
-                                            height: 40,
-                                            duration: _duration,
-                                            position: _position,
-                                          ),
+                                          child: _isLoadingWaveform
+                                              ? const Center(
+                                                  child: CircularProgressIndicator(
+                                                    color: Colors.white,
+                                                  ),
+                                                )
+                                              : WaveVisualization(
+                                                  pcmChunks: _pcmChunks,
+                                                  height: 120,
+                                                  duration: _duration,
+                                                  position: _position,
+                                                ),
                                         ),
                                       );
                                     },
                                   ),
                                 ] else if (_isAudioReady) ...[
-                                  // Slider shown initially (while file is loading)
                                   // Fallback to simple slider if waveform not loaded
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),

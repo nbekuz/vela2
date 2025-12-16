@@ -94,7 +94,7 @@ class _OnboardingPage2State extends State<OnboardingPage2> {
                       : null,
                   style: ButtonStyles.primary,
                   child: _isVideoReady
-                      ? Text('Next', style: ButtonStyles.primaryText)
+                      ? Text('Next ', style: ButtonStyles.primaryText)
                       : Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

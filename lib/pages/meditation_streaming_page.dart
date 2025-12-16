@@ -6,6 +6,7 @@ import '../shared/widgets/wave_visualization.dart';
 import '../shared/widgets/stars_animation.dart';
 import '../core/services/meditation_streaming_service.dart';
 import '../core/services/audio_player_service.dart';
+import '../core/services/pcm_stream_player.dart' show PcmStreamPlayer;
 import '../core/services/meditation_action_service.dart';
 import 'components/sleep_meditation_header.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,15 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'meditation_streaming/helpers.dart';
 
+/// Audio playback mode - state machine
+enum AudioMode {
+  generating,     // API ishlayapti
+  pcmStreaming,   // realtime PCM playback
+  transitioning,  // PCM → FILE
+  filePaused,     // just_audio paused
+  filePlaying,    // just_audio playing
+}
+
 class MeditationStreamingPage extends StatefulWidget {
   const MeditationStreamingPage({super.key});
 
@@ -31,40 +41,44 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
   final MeditationStreamingService _streamingService =
       MeditationStreamingService();
   final AudioPlayerService _audioService = AudioPlayerService();
+  PcmStreamPlayer? _pcmStreamPlayer;
 
+  // State machine
+  AudioMode _mode = AudioMode.generating;
+
+  // UI state
   bool _isLoading = false;
-  bool _isStreaming = false;
   String? _error;
   double _progressSeconds = 0;
   final List<Uint8List> _pcmChunks = [];
   Uint8List? _wavBytes;
   Timer? _progressTimer;
+  Timer? _positionUpdateTimer; // PCM position tracking uchun
   DateTime? _startTime;
-  bool _isPlaying = false;
-  bool _isPaused = false;
+  DateTime? _playbackStartTime; // PCM playback boshlangan vaqt
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
-  Duration? _lastSavedPosition; // Last saved position before file update
-  bool _isUpdatingFile = false; // Flag to prevent position updates during file update
-  bool _isFileUpdateInProgress = false; // Prevent parallel file updates
   bool _isMuted = false;
   bool _isLiked = false;
-  bool _showGeneratingScreen = true; // Generating screen ko'rsatish uchun
+  bool _showGeneratingScreen = true;
   VideoPlayerController? _videoController;
   bool _isVideoInitialized = false;
-  String? _meditationId; // Meditation ID ni saqlash uchun
+  String? _meditationId;
+
+  // Stream subscriptions
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration?>? _durationSubscription;
 
   @override
   void initState() {
     super.initState();
-    _setupAudioServiceListeners();
+    _setupJustAudioListeners();
     _loadRitualSettings();
     _initializeVideoController();
     // Auto-start streaming when page loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startStreaming();
     });
-    // Generating screen ni boshlang'ich holatda ko'rsatish
     _showGeneratingScreen = true;
   }
 
@@ -101,50 +115,79 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
     }
   }
 
-  void _setupAudioServiceListeners() {
-    _audioService.onPlayingStateChanged = (playing) {
-      if (mounted) {
+  /// Setup just_audio position/duration listeners (faqat file mode uchun)
+  void _setupJustAudioListeners() {
+    // Position stream - faqat file mode da ishlaydi
+    // 🔴 CRITICAL: Transition paytida 0 ni ignore qilamiz (file load glitch)
+    _positionSubscription = _audioService.positionStream.listen((position) {
+      if (!mounted) return;
+      
+      // Transition paytida 0 ni ignore qilamiz (savedPosition ni bosib yubormaslik uchun)
+      if (_mode == AudioMode.transitioning && position == Duration.zero) {
+        return;
+      }
+      
+      if (_mode == AudioMode.filePlaying || _mode == AudioMode.filePaused) {
         setState(() {
-          _isPlaying = playing;
+          _position = position;
         });
       }
-    };
+    });
 
-    _audioService.onPausedStateChanged = (paused) {
-      if (mounted) {
-        setState(() {
-          _isPaused = paused;
-        });
-      }
-    };
-
-    _audioService.onPositionChanged = (position) {
-      if (mounted) {
-        // Only update position if we're not updating the file
-        // This prevents position from being reset during file updates
-        if (!_isUpdatingFile) {
-          setState(() {
-            _position = position;
-          });
-        }
-      }
-    };
-
-    _audioService.onDurationChanged = (duration) {
-      if (mounted) {
+    // Duration stream
+    _durationSubscription = _audioService.durationStream.listen((duration) {
+      if (mounted && duration != null) {
         setState(() {
           _duration = duration;
         });
       }
-    };
+    });
   }
 
   @override
   void dispose() {
+    print('🧹 [Dispose] Cleaning up all resources...');
+    
+    // 🔴 CRITICAL: Mode ni transitioning ga o'rnatish - barcha callbacklarni bloklaydi
+    // Bu "setState after dispose" warningni 100% yo'q qiladi
+    _mode = AudioMode.transitioning;
+    
+    // Cancel all timers
     _progressTimer?.cancel();
+    _positionUpdateTimer?.cancel();
+    
+    // Cancel stream subscriptions
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    
+    // 🔴 CRITICAL: Sync dispose (await yo'q)
+    // Stop PCM player - sync (fire and forget)
+    if (_pcmStreamPlayer != null) {
+      try {
+        // Fire and forget - don't await
+        _pcmStreamPlayer!.stop().catchError((e) {
+          print('⚠️ [Dispose] Error stopping PCM: $e');
+        });
+      } catch (e) {
+        print('⚠️ [Dispose] Error calling PCM stop: $e');
+      }
+      _pcmStreamPlayer = null;
+    }
+    
+    // Stop and dispose just_audio player sync
+    try {
+      _audioService.disposeSync();
+    } catch (e) {
+      print('⚠️ [Dispose] Error disposing audio: $e');
+    }
+    
+    // Dispose streaming service
     _streamingService.dispose();
-    _audioService.dispose();
+    
+    // Dispose video controller
     _videoController?.dispose();
+    
+    print('✅ [Dispose] Cleanup complete');
     super.dispose();
   }
 
@@ -160,11 +203,11 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
     setState(() {
       _error = null;
       _isLoading = true;
-      _isStreaming = false;
       _wavBytes = null;
       _pcmChunks.clear();
       _progressSeconds = 0;
-      _showGeneratingScreen = true; // Generating screen ni ko'rsatish
+      _showGeneratingScreen = true;
+      _mode = AudioMode.generating;
     });
 
     // Agar registratsiya vaqtida bo'lsa, account update ni parallel ravishda yuborish
@@ -179,16 +222,26 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
             _pcmChunks.clear();
             _pcmChunks.addAll(chunks);
           });
+          // Update duration based on chunks
+          _updatePcmDuration();
+        }
+      },
+      onNewChunk: (newChunk) {
+        // Start PCM streaming if not started yet
+        if (_mode == AudioMode.generating) {
+          _startPcmStreaming();
+        }
+        // Add chunk to PCM player
+        if (_mode == AudioMode.pcmStreaming && mounted) {
+          _onNewPcmChunk(newChunk);
         }
       },
       onComplete: (wavBytes) async {
-        if (mounted) {
+          if (mounted) {
           setState(() {
             _wavBytes = wavBytes;
-            _isStreaming = false;
             _isLoading = false;
-            _showGeneratingScreen =
-                false; // Stream to'liq tugagach ham yashirish
+            _showGeneratingScreen = false;
           });
 
           // API ga meditation yaratish uchun yuborish
@@ -225,42 +278,9 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
             // Faqat generatsiya API xatolarida dashboardga o'tkaziladi
           }
 
-          if (_streamingService.tempAudioFile != null) {
-            try {
-              bool wasPlaying = _isPlaying;
-              bool wasPaused = _isPaused;
-
-              Duration? savedPosition;
-              if (wasPlaying || wasPaused) {
-                savedPosition = await _audioService.getCurrentPosition();
-              }
-
-              await _audioService.playFromFile(
-                _streamingService.tempAudioFile!.path,
-              );
-
-              if (savedPosition != null && savedPosition.inMilliseconds > 0) {
-                await Future.delayed(const Duration(milliseconds: 100));
-                await _audioService.seek(savedPosition);
-
-                if (wasPlaying && !wasPaused) {
-                  await _audioService.resume();
-                }
-              } else if (!wasPlaying && !wasPaused) {
-                await _audioService.resume();
-                if (mounted) {
-                  setState(() {
-                    _isPlaying = true;
-                  });
-                }
-              }
-            } catch (e) {
-              if (mounted) {
-                setState(() {
-                  _error = "Playback error: $e";
-                });
-              }
-            }
+          // PCM → FILE transition
+          if (_streamingService.tempAudioFile != null && _mode == AudioMode.pcmStreaming) {
+            await _transitionToFile(_streamingService.tempAudioFile!);
           }
         }
       },
@@ -268,7 +288,7 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
         if (mounted) {
           setState(() {
             _isLoading = false;
-            _isStreaming = false;
+            _mode = AudioMode.generating;
             _error = error;
           });
           // Faqat generatsiya API (http://31.97.98.47:8000/) xatolarida dashboardga o'tkazish
@@ -280,11 +300,10 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
       onStateChanged: (streaming) {
         if (mounted) {
           setState(() {
-            _isStreaming = streaming;
             _isLoading = false;
           });
 
-          if (streaming) {
+          if (streaming && _mode == AudioMode.generating) {
             _startTime = DateTime.now();
             _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (
               _,
@@ -316,118 +335,254 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
           }
         }
 
-        if (!_isPlaying && totalBytes >= requiredBytes) {
-          final tempFile = _streamingService.tempAudioFile;
-          if (tempFile != null) {
-            _startPlaybackDuringStreaming(tempFile);
-          }
-        }
-      },
-      onFileUpdate: (updatedFile) async {
-        // Prevent parallel file updates - this causes Android freezing
-        if (_isFileUpdateInProgress) {
-          print('⚠️ [onFileUpdate] File update already in progress, skipping...');
-          return;
-        }
-        
-        // Fayl yangilanganda, agar audio o'ynatayotgan bo'lsa, position'ni saqlab qolish
-        if (_isPlaying || _isPaused) {
-          try {
-            _isFileUpdateInProgress = true;
-            
-            // Get current position DIRECTLY from audio service BEFORE setting flag
-            // This ensures we get the most up-to-date position, not the stale _position state
-            final currentPositionFromService = await _audioService.getCurrentPosition();
-            
-            // Use the position from service, or fallback to last saved, or current state
-            final positionToSave = currentPositionFromService ?? _lastSavedPosition ?? _position;
-            
-            print('🔵 [onFileUpdate] Current position from service: $currentPositionFromService');
-            print('🔵 [onFileUpdate] Position to save: $positionToSave (from ${currentPositionFromService != null ? "service" : _lastSavedPosition != null ? "lastSaved" : "state"}), isPlaying: $_isPlaying, isPaused: $_isPaused');
-            
-            if (positionToSave.inMilliseconds > 0) {
-              // Set flag to prevent position updates during file update
-              _isUpdatingFile = true;
-              
-              // Update last saved position with the actual current position
-              _lastSavedPosition = positionToSave;
-              
-              print('🔵 [onFileUpdate] Calling updateFilePreservingPosition with position: $positionToSave');
-              await _audioService.updateFilePreservingPosition(
-                updatedFile.path,
-                savedPosition: positionToSave,
-              );
-              
-              // Update position after file update
-              if (mounted) {
-                setState(() {
-                  _position = positionToSave;
-                });
-              }
-              
-              print('✅ [onFileUpdate] File updated, position preserved: $positionToSave');
-            } else {
-              print('⚠️ [onFileUpdate] Position is null or 0, skipping file update');
-            }
-          } catch (e) {
-            print('⚠️ [onFileUpdate] Error updating file preserving position: $e');
-            // Xatolik bo'lsa ham davom etish kerak
-          } finally {
-            // Always reset flags
-            _isUpdatingFile = false;
-            _isFileUpdateInProgress = false;
-          }
-        } else {
-          print('🔵 [onFileUpdate] Audio not playing or paused, skipping file update');
-        }
+        // Legacy code - no longer needed with new architecture
       },
     );
   }
 
-  Future<void> _startPlaybackDuringStreaming(File tempFile) async {
-    if (_isPlaying) return;
+  /// Start PCM streaming
+  /// 🔴 CRITICAL: Guard qo'shildi - bir necha marta chaqirilishini oldini oladi
+  Future<void> _startPcmStreaming() async {
+    if (_mode != AudioMode.generating || _pcmStreamPlayer != null) return;
+    
+    _pcmStreamPlayer = PcmStreamPlayer(
+      sampleRate: SAMPLE_RATE,
+      channels: CHANNELS,
+      bytesPerSample: BYTES_PER_SAMPLE,
+    );
+    
+    await _pcmStreamPlayer!.start();
+    
+    _mode = AudioMode.pcmStreaming;
+    _playbackStartTime = DateTime.now();
+    
+    // Start PCM position tracking timer
+    _startPcmPositionTracking();
+    
+    print('✅ [PCM] Streaming started');
+  }
 
-    try {
-      await _audioService.playFromFile(tempFile.path);
+  /// Handle new PCM chunk
+  void _onNewPcmChunk(Uint8List chunk) {
+    if (_mode != AudioMode.pcmStreaming) return;
+    _pcmStreamPlayer?.addChunk(chunk);
+  }
 
-      if (mounted) {
+  /// Get PCM position (BITTA MANBA - DateTime orqali)
+  Duration get _pcmPosition {
+    if (_playbackStartTime == null) return Duration.zero;
+    return DateTime.now().difference(_playbackStartTime!);
+  }
+
+  /// Start PCM position tracking timer
+  /// 🔴 CRITICAL: Timer faqat position uchun, duration ga tegma
+  void _startPcmPositionTracking() {
+    _positionUpdateTimer?.cancel();
+    _positionUpdateTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!mounted || _mode != AudioMode.pcmStreaming) return;
+      
+      final newPosition = _pcmPosition;
+      
+      // Duration dan oshib ketmasligi uchun
+      if (_duration.inMilliseconds > 0 && newPosition > _duration) {
         setState(() {
-          _isPlaying = true;
+          _position = _duration;
+        });
+      } else {
+        setState(() {
+          _position = newPosition;
         });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = false;
-        });
-      }
+    });
+  }
+
+  /// Update duration based on PCM chunks
+  /// 🔴 CRITICAL: Duration faqat chunk kelganda yangilanadi (race condition yo'q)
+  void _updatePcmDuration() {
+    final totalBytes = _pcmChunks.fold<int>(0, (sum, c) => sum + c.length);
+    final bytesPerSecond = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE;
+    final calculatedDuration = Duration(
+      milliseconds: ((totalBytes / bytesPerSecond) * 1000).round(),
+    );
+    
+    if (mounted && calculatedDuration > _duration) {
+      setState(() {
+        _duration = calculatedDuration;
+      });
     }
   }
 
-  void _togglePlayPause() async {
-    if (_isStreaming && !_isPlaying) {
+  /// PCM → FILE transition (TOZA VA SODDA)
+  Future<void> _transitionToFile(File audioFile) async {
+    print('🔄 [Transition] PCM → FILE starting...');
+    
+    // 🔴 CRITICAL: Save position and playing state BEFORE changing mode
+    final wasPcm = _mode == AudioMode.pcmStreaming;
+    final wasPlaying = wasPcm && _playbackStartTime != null; // PCM playing bo'lsa
+    final savedPosition = wasPcm ? _pcmPosition : _position;
+    print('🔄 [Transition] Saved position: ${savedPosition.inSeconds}s (wasPcm: $wasPcm, wasPlaying: $wasPlaying)');
+    
+    _mode = AudioMode.transitioning;
+    
+    // 1. STOP PCM (TO'LIQ)
+    if (_pcmStreamPlayer != null) {
+      _positionUpdateTimer?.cancel();
+      _positionUpdateTimer = null;
+      
+      await _pcmStreamPlayer!.stop();
+      _pcmStreamPlayer = null;
+      print('✅ [Transition] PCM stopped');
+    }
+    
+    // 2. STOP just_audio (safety)
+    await _audioService.stop();
+    
+    // 3. LOAD FILE
+    await _audioService.playFromFile(
+      audioFile.path,
+      initialPosition: savedPosition,
+    );
+    
+    // 🔴 CRITICAL: Duration file'dan kelishini kutamiz (waveform timing uchun)
+    try {
+      await _audioService.durationStream
+          .where((d) => d != null)
+          .first
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () {
+              print('⚠️ [Transition] Duration timeout, continuing anyway');
+              return null;
+            },
+          );
+    } catch (e) {
+      print('⚠️ [Transition] Error waiting for duration: $e');
+    }
+    
+    // 4. Agar PCM playing bo'lsa, file ham playing bo'lishi kerak
+    if (wasPlaying) {
+      // Resume playing
+      await _audioService.play();
+      if (mounted) {
+        setState(() {
+          _position = savedPosition;
+          _mode = AudioMode.filePlaying;
+        });
+      }
+      print('✅ [Transition] Resumed playing');
+    } else {
+      // Paused holatda qoldiramiz
+      await _audioService.pause();
+      if (mounted) {
+        setState(() {
+          _position = savedPosition;
+          _mode = AudioMode.filePaused;
+        });
+      }
+      print('✅ [Transition] Kept paused');
+    }
+    
+    print('✅ [Transition] Complete - mode: $_mode, position: ${_position.inSeconds}s');
+  }
+
+  /// Toggle play/pause (SODDA VA TO'G'RI)
+  Future<void> _togglePlayPause() async {
+    // Block during transition or PCM streaming
+    if (_mode == AudioMode.transitioning || _mode == AudioMode.pcmStreaming) {
+      print('⚠️ [Play/Pause] Disabled in mode: $_mode');
       return;
     }
 
-    if (_isPlaying) {
+    if (_mode == AudioMode.filePlaying) {
       await _audioService.pause();
+      if (mounted) {
+        setState(() {
+          _mode = AudioMode.filePaused;
+        });
+      }
+      print('✅ [Play/Pause] Paused');
+    } else if (_mode == AudioMode.filePaused) {
+      await _audioService.play();
+      if (mounted) {
+        setState(() {
+          _mode = AudioMode.filePlaying;
+        });
+      }
+      print('✅ [Play/Pause] Playing');
+    }
+  }
+
+  /// Stop audio playback
+  Future<void> _stopPlayback() async {
+    print('🛑 [Stop] Stopping playback...');
+    
+    // Cancel position tracking timer
+    _positionUpdateTimer?.cancel();
+    _positionUpdateTimer = null;
+    
+    // Stop PCM if exists
+    if (_pcmStreamPlayer != null) {
+      await _pcmStreamPlayer!.stop();
+      _pcmStreamPlayer = null;
+    }
+    
+    // Stop just_audio
+    await _audioService.stop();
+    
+    // Reset state
+    if (mounted) {
       setState(() {
-        _isPlaying = false;
-        _isPaused = true;
+        _mode = AudioMode.generating;
+        _position = Duration.zero;
       });
-    } else {
-      await _audioService.resume();
-      setState(() {
-        _isPlaying = true;
-        _isPaused = false;
-      });
+    }
+    
+    print('✅ [Stop] Playback stopped');
+  }
+
+  /// Seek to position (FAqat FILE MODE)
+  Future<void> _handleSeek(double tapX, double width) async {
+    if (_duration.inMilliseconds <= 0) {
+      return;
+    }
+
+    // Block during transition or PCM streaming
+    if (_mode != AudioMode.filePlaying && _mode != AudioMode.filePaused) {
+      print('⚠️ [Seek] Cannot seek in mode: $_mode');
+      return;
+    }
+
+    final progress = (tapX / width).clamp(0.0, 1.0);
+    final seekPosition = Duration(
+      milliseconds: (_duration.inMilliseconds * progress).round(),
+    );
+    
+    print('⏩ [Seek] Seeking to ${seekPosition.inSeconds}s...');
+    
+    try {
+      await _audioService.seek(seekPosition);
+      
+      // Update position immediately in UI
+      if (mounted) {
+        setState(() {
+          _position = seekPosition;
+        });
+      }
+      
+      print('✅ [Seek] Success: ${seekPosition.inSeconds}s');
+    } catch (e) {
+      print('❌ [Seek] Error: $e');
     }
   }
 
   void _toggleMute() {
     setState(() {
       _isMuted = !_isMuted;
-      _audioService.setVolume(_isMuted ? 0.0 : 1.0);
+      
+      // 🔴 CRITICAL: Volume faqat file mode da (PCM'da Android crash risk)
+      if (_mode == AudioMode.filePlaying || _mode == AudioMode.filePaused) {
+        _audioService.setVolume(_isMuted ? 0.0 : 1.0);
+      }
     });
   }
 
@@ -632,7 +787,9 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
     final profileData = meditationStore.meditationProfile;
 
     // Check if audio is fully loaded
-    final isAudioReady = !_isStreaming && _wavBytes != null;
+    final isAudioReady = (_mode == AudioMode.filePlaying || 
+                          _mode == AudioMode.filePaused) && 
+                         _wavBytes != null;
 
     // Get duration from audio file (rounded to minutes)
     // Agar audio hali yuklanmagan bo'lsa, default qiymat
@@ -874,7 +1031,7 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(
-                                          _isPlaying
+                                          _mode == AudioMode.filePlaying
                                               ? Icons.pause_rounded
                                               : Icons.play_arrow_rounded,
                                           size: 40,
@@ -976,52 +1133,16 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
                                 return SizedBox(
                                   height: 120,
                                   child: GestureDetector(
-                                    onTapDown: isAudioReady
+                                    onTapDown: (_duration.inMilliseconds > 0 && 
+                                                (_mode == AudioMode.filePlaying || _mode == AudioMode.filePaused))
                                         ? (details) async {
-                                            if (_duration.inMilliseconds > 0) {
-                                              final tapX =
-                                                  details.localPosition.dx;
-                                              final width =
-                                                  constraints.maxWidth;
-                                              final progress = (tapX / width)
-                                                  .clamp(0.0, 1.0);
-                                              final seekPosition = Duration(
-                                                milliseconds:
-                                                    (_duration.inMilliseconds *
-                                                            progress)
-                                                        .round(),
-                                              );
-                                              await _audioService.seek(
-                                                seekPosition,
-                                              );
-                                              setState(() {
-                                                _position = seekPosition;
-                                              });
-                                            }
+                                            await _handleSeek(details.localPosition.dx, constraints.maxWidth);
                                           }
                                         : null,
-                                    onPanUpdate: isAudioReady
+                                    onPanUpdate: (_duration.inMilliseconds > 0 && 
+                                                  (_mode == AudioMode.filePlaying || _mode == AudioMode.filePaused))
                                         ? (details) async {
-                                            if (_duration.inMilliseconds > 0) {
-                                              final tapX =
-                                                  details.localPosition.dx;
-                                              final width =
-                                                  constraints.maxWidth;
-                                              final progress = (tapX / width)
-                                                  .clamp(0.0, 1.0);
-                                              final seekPosition = Duration(
-                                                milliseconds:
-                                                    (_duration.inMilliseconds *
-                                                            progress)
-                                                        .round(),
-                                              );
-                                              await _audioService.seek(
-                                                seekPosition,
-                                              );
-                                              setState(() {
-                                                _position = seekPosition;
-                                              });
-                                            }
+                                            await _handleSeek(details.localPosition.dx, constraints.maxWidth);
                                           }
                                         : null,
                                     child: WaveVisualization(

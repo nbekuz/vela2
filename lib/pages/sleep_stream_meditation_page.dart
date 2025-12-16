@@ -36,6 +36,8 @@ class SleepStreamMeditationPage extends StatefulWidget {
 
 class _SleepStreamMeditationPageState extends State<SleepStreamMeditationPage> {
   just_audio.AudioPlayer? _audioPlayer;
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration?>? _durationSubscription;
   bool _isPlaying = false;
   bool _isAudioReady = false;
   PlayerController? _waveformController;
@@ -123,29 +125,34 @@ class _SleepStreamMeditationPageState extends State<SleepStreamMeditationPage> {
   }
 
   void _setupAudioService() {
-    _audioService.onPlayingStateChanged = (playing) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = playing;
-        });
-      }
-    };
-
-    _audioService.onPositionChanged = (position) {
-      if (mounted) {
+    // Position stream listener
+    _positionSubscription = _audioService.positionStream.listen((position) {
+      if (mounted && !_isDragging) {
         setState(() {
           _position = position;
         });
       }
-    };
+    });
 
-    _audioService.onDurationChanged = (duration) {
-      if (mounted) {
+    // Duration stream listener
+    _durationSubscription = _audioService.durationStream.listen((duration) {
+      if (mounted && duration != null) {
         setState(() {
           _duration = duration;
         });
       }
-    };
+    });
+
+    // Playing state - just_audio player dan olamiz
+    if (_audioPlayer != null) {
+      _audioPlayer!.playerStateStream.listen((state) {
+        if (mounted) {
+          setState(() {
+            _isPlaying = state.playing;
+          });
+        }
+      });
+    }
   }
 
   Future<void> _setupAudioPlayerListeners() async {
@@ -182,7 +189,6 @@ class _SleepStreamMeditationPageState extends State<SleepStreamMeditationPage> {
     print('🔵 Starting playback during streaming...');
     try {
       await _audioService.playFromFile(tempFile.path);
-      await _audioService.setupJustAudioPlayer(tempFile.path);
       
       if (_audioPlayer == null) {
         _audioPlayer = just_audio.AudioPlayer();
@@ -271,6 +277,8 @@ class _SleepStreamMeditationPageState extends State<SleepStreamMeditationPage> {
     // Clean up streaming resources
     _progressTimer?.cancel();
     _streamingService.dispose();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
     _audioService.dispose();
     
     // Safely dispose audio player
@@ -372,7 +380,7 @@ class _SleepStreamMeditationPageState extends State<SleepStreamMeditationPage> {
         }
 
         await _audioPlayer!.play();
-        await _audioService.resume();
+        await _audioService.play();
         if (_waveformReady && _waveformController != null) {
           try {
             _waveformController!.startPlayer();
@@ -528,7 +536,7 @@ class _SleepStreamMeditationPageState extends State<SleepStreamMeditationPage> {
                                    // Resume audio after seeking if it was playing before drag
                                    if (_wasPlayingBeforeDrag) {
                                      await _audioPlayer?.play();
-                                     await _audioService.resume();
+                                     await _audioService.play();
                                      // The audio player state listener will update _isPlaying automatically
                                    }
                                  },

@@ -184,7 +184,7 @@ class _EditInfoPageState extends State<EditInfoPage> {
     };
 
     await ApiService.request(
-      url: 'auth/user-detail-update/',
+      url: 'auth/user-detail-update',
       method: 'PUT',
       data: requestData,
       open: false,

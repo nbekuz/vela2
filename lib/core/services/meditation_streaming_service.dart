@@ -15,33 +15,32 @@ class MeditationStreamingService {
   StreamSubscription<List<int>>? _streamSub;
   File? _tempAudioFile;
   final List<Uint8List> _pcmChunks = [];
-  Timer? _fileUpdateDebounceTimer; // Debounce timer for file updates
 
   // Callbacks
-  Function(List<Uint8List>)? onChunkReceived;
+  Function(List<Uint8List>)? onChunkReceived; // Barcha chunks ro'yxati
+  Function(Uint8List)? onNewChunkReceived; // Faqat yangi chunk
   Function(Uint8List)? onStreamComplete;
   Function(String)? onError;
   Function(bool)? onStreamingStateChanged;
   Function(int)? onProgressUpdate;
-  Function(File)? onFileUpdated; // Called when file is updated with new chunks
 
   /// Start streaming meditation audio
   Future<File?> startStreaming(
     BuildContext context, {
     Function(List<Uint8List>)? onChunk,
+    Function(Uint8List)? onNewChunk,
     Function(Uint8List)? onComplete,
     Function(String)? onErrorCallback,
     Function(bool)? onStateChanged,
     Function(int)? onProgress,
-    Function(File)? onFileUpdate,
   }) async {
     // Set callbacks
     onChunkReceived = onChunk;
+    onNewChunkReceived = onNewChunk;
     onStreamComplete = onComplete;
     onError = onErrorCallback;
     onStreamingStateChanged = onStateChanged;
     onProgressUpdate = onProgress;
-    onFileUpdated = onFileUpdate;
 
     try {
       _client = http.Client();
@@ -120,56 +119,87 @@ class MeditationStreamingService {
 
           onProgressUpdate?.call(totalBytes);
           onChunkReceived?.call(_pcmChunks);
+          // Yangi chunk ni alohida yuborish
+          onNewChunkReceived?.call(data);
 
-          // Create/update WAV file with current chunks
-          try {
-            final wav = createWavBytes(_pcmChunks, SAMPLE_RATE, CHANNELS);
-            await _tempAudioFile!.writeAsBytes(wav);
-            
-            // Debounce file update notifications to avoid too frequent updates
-            // This prevents audio player from being updated too frequently
-            // Increased debounce time to prevent Android freezing
-            _fileUpdateDebounceTimer?.cancel();
-            _fileUpdateDebounceTimer = Timer(const Duration(milliseconds: 1000), () {
-              // Notify that file has been updated (debounced)
-              onFileUpdated?.call(_tempAudioFile!);
-            });
-          } catch (e, stackTrace) {
-            print('⚠️ Stack trace: $stackTrace');
-          }
+          // 🔴 CRITICAL: DO NOT write to file during streaming!
+          // This causes file locks that prevent just_audio seek() and stop() from working
+          // File will be written ONLY in onDone callback when stream is complete
         },
         onDone: () async {
-          final totalBytes = _pcmChunks.fold<int>(
-            0,
-            (sum, c) => sum + c.length,
-          );
+          try {
+            final totalBytes = _pcmChunks.fold<int>(
+              0,
+              (sum, c) => sum + c.length,
+            );
 
-          // Calculate final audio duration
-          final bytesPerSecond = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE;
-          final finalAudioSeconds = totalBytes / bytesPerSecond;
+            // Calculate final audio duration
+            final bytesPerSecond = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE;
+            final finalAudioSeconds = totalBytes / bytesPerSecond;
 
-          if (_pcmChunks.isNotEmpty) {
-            try {
-              final wav = createWavBytes(_pcmChunks, SAMPLE_RATE, CHANNELS);
-              final wavSize = wav.length;
+            if (_pcmChunks.isNotEmpty) {
+              try {
+                // 🔴 CRITICAL: Create WAV file ONLY when stream is complete
+                // This prevents file locks during streaming that block just_audio seek() and stop()
+                final wav = createWavBytes(_pcmChunks, SAMPLE_RATE, CHANNELS);
+                final wavSize = wav.length;
 
-              if (_tempAudioFile != null) {
-                await _tempAudioFile!.writeAsBytes(wav);
+                // 🔴 CRITICAL: Write file ONLY once, when stream is done
+                // This ensures file is not locked when just_audio tries to open it
+                if (_tempAudioFile != null) {
+                  await _tempAudioFile!.writeAsBytes(wav);
+                  print('✅ [Stream] WAV file written: ${wavSize} bytes');
+                }
+
+                // 🔴 CRITICAL: Close HTTP stream BEFORE calling callbacks
+                // This releases audio engine locks (iOS AVAudioSession, Android AudioTrack)
+                await _streamSub?.cancel();
+                _streamSub = null;
+
+                _client?.close();
+                _client = null;
+
+                onStreamingStateChanged?.call(false);
+                onStreamComplete?.call(wav);
+              } catch (e, stackTrace) {
+                // Ensure cleanup even on error
+                await _streamSub?.cancel();
+                _streamSub = null;
+                _client?.close();
+                _client = null;
+
+                onStreamingStateChanged?.call(false);
+                onError?.call("WAV creation error: $e");
               }
-              onStreamingStateChanged?.call(false);
+            } else {
+              // Ensure cleanup even if empty
+              await _streamSub?.cancel();
+              _streamSub = null;
+              _client?.close();
+              _client = null;
 
-              onStreamComplete?.call(wav);
-            } catch (e, stackTrace) {
               onStreamingStateChanged?.call(false);
-              onError?.call("WAV creation error: $e");
+              onError?.call("Empty stream from server");
             }
-          } else {;
+          } catch (e) {
+            // Final safety cleanup
+            await _streamSub?.cancel();
+            _streamSub = null;
+            _client?.close();
+            _client = null;
             onStreamingStateChanged?.call(false);
-            onError?.call("Empty stream from server");
+            onError?.call("Stream completion error: $e");
           }
         },
-        onError: (err, stackTrace) {
-          ;
+        onError: (err, stackTrace) async {
+          // 🔴 CRITICAL: Close HTTP stream on error
+          // This releases audio engine locks immediately
+          await _streamSub?.cancel();
+          _streamSub = null;
+
+          _client?.close();
+          _client = null;
+
           onStreamingStateChanged?.call(false);
           onError?.call(err.toString());
         },
@@ -185,10 +215,10 @@ class MeditationStreamingService {
 
   /// Stop streaming
   Future<void> stopStreaming() async {
-    _fileUpdateDebounceTimer?.cancel();
-    _fileUpdateDebounceTimer = null;
-    _streamSub?.cancel();
+    // 🔴 CRITICAL: Properly await cancellation to ensure stream is fully closed
+    await _streamSub?.cancel();
     _streamSub = null;
+
     _client?.close();
     _client = null;
     // Callback'ni chaqirmaslik - widget dispose bo'lganda xatolik yuzaga kelmasligi uchun
@@ -207,8 +237,6 @@ class MeditationStreamingService {
 
   /// Dispose resources
   Future<void> dispose() async {
-    _fileUpdateDebounceTimer?.cancel();
-    _fileUpdateDebounceTimer = null;
     await stopStreaming();
     // Clean up temp file
     if (_tempAudioFile != null) {

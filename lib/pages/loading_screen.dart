@@ -101,9 +101,9 @@ class _LoadingScreenState extends State<LoadingScreen>
       await Future.delayed(const Duration(seconds: 1));
     }
     // If we reach here, it means user is not authenticated
-    // Navigate to starter page (first page after splash)
+    // Navigate to onboarding page 1 (first page after splash)
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/starter');
+    Navigator.of(context).pushReplacementNamed('/onboarding-1');
   }
 
   @override
