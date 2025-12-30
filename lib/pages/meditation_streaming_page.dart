@@ -523,15 +523,15 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
     }
   }
 
-  /// PCM → FILE transition from API link (YANGI)
+  /// PCM → FILE transition - generatsiya qilingan local file'ni to'g'ridan-to'g'ri play qilish
+  /// 🔴 CRITICAL: Stream to'liq tugagach, audio boshidan boshlanib pause qilib qo'yiladi
   Future<void> _transitionToFileFromApi(String meditationId) async {
-    print('🔄 [Transition] PCM → FILE from API starting...');
+    print('🔄 [Transition] PCM → FILE transition starting...');
+    print('🔄 [Transition] Stream to\'liq tugadi, audio boshidan boshlanib pause qilib qo\'yiladi');
     
-    // 🔴 CRITICAL: Save position and playing state BEFORE changing mode
-    final wasPcm = _mode == AudioMode.pcmStreaming;
-    final wasPlaying = wasPcm && _playbackStartTime != null;
-    final savedPosition = wasPcm ? _pcmPosition : _position;
-    print('🔄 [Transition] Saved position: ${savedPosition.inSeconds}s (wasPcm: $wasPcm, wasPlaying: $wasPlaying)');
+    // 🔴 CRITICAL: Stream to'liq tugagach, audio boshidan boshlanib pause qilib qo'yiladi
+    // savedPosition har doim Duration.zero bo'ladi
+    final savedPosition = Duration.zero; // Har doim boshidan boshlanadi
     
     _mode = AudioMode.transitioning;
     
@@ -545,45 +545,64 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
       print('✅ [Transition] PCM stopped');
     }
     
-    // 2. STOP just_audio (safety)
-    await _audioService.stop();
-    
-    // 3. GET MEDITATION BY ID - API dan link olish
-    String? audioUrl;
+    // 2. STOP just_audio (safety) - faqat agar allaqachon playing bo'lsa
+    // Agar PCM playing bo'lsa va seamless transition kerak bo'lsa, stop() ni o'tkazib yuborish
+    // Chunki playFromFile() ichida allaqachon stop() chaqiriladi
     try {
-      print('🔄 [Transition] Getting meditation by ID: $meditationId');
-      final response = await ApiService.request(
-        url: 'auth/meditation/$meditationId/',
-        method: 'GET',
-        open: false, // Token required
-      );
-      
-      // Response format: { "file": "http://...", "file_wav": "http://..." }
-      // Yoki { "details": { ... }, "file": "http://..." }
-      final responseData = response.data;
-      final fileUrl = responseData is Map 
-          ? (responseData['file'] ?? 
-             responseData['file_wav'] ??
-             responseData['details']?['file'])
-          : null;
-      
-      if (fileUrl != null && fileUrl is String) {
-        audioUrl = fileUrl;
-        print('✅ [Transition] Got audio URL: $audioUrl');
-      } else {
-        print('⚠️ [Transition] No file URL in response: $responseData');
-        // Fallback to local file if available
-        if (_streamingService.tempAudioFile != null) {
-          audioUrl = _streamingService.tempAudioFile!.path;
-          print('✅ [Transition] Using local file as fallback');
-        }
+      if (_audioService.isPlaying) {
+        await _audioService.stop();
+        print('✅ [Transition] Stopped existing just_audio playback');
       }
     } catch (e) {
-      print('❌ [Transition] Error getting meditation: $e');
-      // Fallback to local file if available
-      if (_streamingService.tempAudioFile != null) {
-        audioUrl = _streamingService.tempAudioFile!.path;
-        print('✅ [Transition] Using local file as fallback after error');
+      print('⚠️ [Transition] Error stopping just_audio: $e');
+    }
+    
+    // 3. GENERATSIYA QILINGAN LOCAL FILE'NI TO'G'RIDAN-TO'G'RI ISHLATISH
+    String? audioUrl;
+    
+    // Avval generatsiya qilingan local file'ni tekshirish
+    if (_streamingService.tempAudioFile != null) {
+      final localFile = _streamingService.tempAudioFile!;
+      final fileExists = await localFile.exists();
+      
+      if (fileExists) {
+        audioUrl = localFile.path;
+        print('✅ [Transition] Using generated local file: $audioUrl');
+        print('✅ [Transition] File size: ${await localFile.length()} bytes');
+      } else {
+        print('⚠️ [Transition] Local file does not exist, trying API...');
+      }
+    } else {
+      print('⚠️ [Transition] No local file available, trying API...');
+    }
+    
+    // Agar local file mavjud bo'lmasa, API'dan link olish (fallback)
+    if (audioUrl == null) {
+      try {
+        print('🔄 [Transition] Getting meditation by ID from API: $meditationId');
+        final response = await ApiService.request(
+          url: 'auth/meditation/$meditationId/',
+          method: 'GET',
+          open: false, // Token required
+        );
+        
+        // Response format: { "file": "http://...", "file_wav": "http://..." }
+        // Yoki { "details": { ... }, "file": "http://..." }
+        final responseData = response.data;
+        final fileUrl = responseData is Map 
+            ? (responseData['file'] ?? 
+               responseData['file_wav'] ??
+               responseData['details']?['file'])
+            : null;
+        
+        if (fileUrl != null && fileUrl is String) {
+          audioUrl = fileUrl;
+          print('✅ [Transition] Got audio URL from API: $audioUrl');
+        } else {
+          print('⚠️ [Transition] No file URL in API response: $responseData');
+        }
+      } catch (e) {
+        print('❌ [Transition] Error getting meditation from API: $e');
       }
     }
     
@@ -637,28 +656,16 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
       print('⚠️ [Transition] Error waiting for duration: $e');
     }
     
-    // 5. Agar PCM playing bo'lsa, file ham playing bo'lishi kerak
-    if (wasPlaying) {
-      // Resume playing
-      await _audioService.play();
-      if (mounted) {
-        setState(() {
-          _position = savedPosition;
-          _mode = AudioMode.filePlaying;
-        });
-      }
-      print('✅ [Transition] Resumed playing');
-    } else {
-      // Paused holatda qoldiramiz
-      await _audioService.pause();
-      if (mounted) {
-        setState(() {
-          _position = savedPosition;
-          _mode = AudioMode.filePaused;
-        });
-      }
-      print('✅ [Transition] Kept paused');
+    // 5. 🔴 CRITICAL: Stream to'liq tugagach, audio boshidan boshlanib pause qilib qo'yiladi
+    // Har doim paused holatda qoldiramiz (wasPlaying har doim false)
+    await _audioService.pause();
+    if (mounted) {
+      setState(() {
+        _position = Duration.zero; // Boshidan boshlanadi
+        _mode = AudioMode.filePaused;
+      });
     }
+    print('✅ [Transition] Audio loaded from beginning (position: 0s) and paused');
     
     print('✅ [Transition] Complete - mode: $_mode, position: ${_position.inSeconds}s');
   }
@@ -674,21 +681,33 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
     }
 
     if (_mode == AudioMode.filePlaying) {
-      await _audioService.pause();
+      // Pause - UI ni darhol yangilash
       if (mounted) {
         setState(() {
           _mode = AudioMode.filePaused;
         });
       }
+      await _audioService.pause();
       print('✅ [Play/Pause] Paused');
     } else if (_mode == AudioMode.filePaused) {
-      await _audioService.play();
+      // 🔴 CRITICAL: UI ni DARHOL yangilash (icon pausega o'zgarsin), keyin play() ni chaqirish
+      // Bu icon darhol yangilanishini ta'minlaydi
       if (mounted) {
         setState(() {
           _mode = AudioMode.filePlaying;
         });
       }
-      print('✅ [Play/Pause] Playing');
+      // Play ni background'da chaqirish - UI allaqachon yangilangan
+      _audioService.play().then((_) {
+        print('✅ [Play/Pause] Playing');
+      }).catchError((e) {
+        print('❌ [Play/Pause] Error playing: $e');
+        if (mounted) {
+          setState(() {
+            _mode = AudioMode.filePaused;
+          });
+        }
+      });
     } else {
       print('⚠️ [Play/Pause] Invalid mode for toggle: $_mode');
     }
@@ -900,15 +919,19 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
       // Goals va dream ni update qilish
       final goals = requestBody['goals']?.toString() ?? '';
       final dreamlife = requestBody['dreamlife']?.toString() ?? '';
+      // 🔴 CRITICAL: happiness ni requestBody'dan olish (dream_activities - bu happiness ma'lumoti)
+      final happiness = requestBody['dream_activities']?.toString() ?? '';
 
-      if (goals.isNotEmpty || dreamlife.isNotEmpty) {
+      if (goals.isNotEmpty || dreamlife.isNotEmpty || happiness.isNotEmpty) {
         // Mavjud user ma'lumotlarini olish
         final existingGender = user?.gender ?? 'male';
         final existingAgeRange = user?.ageRange ?? '25-34';
-        final existingHappiness = user?.happiness ?? '';
+        // happiness ni requestBody'dan olish, agar bo'sh bo'lsa user.happiness dan olish
+        final existingHappiness = happiness.isNotEmpty ? happiness : (user?.happiness ?? '');
 
         // Parallel yuborish - await qilmaymiz
-        print('🔄 Sending PUT request to /user-detail-update/ for goals/dream update...');
+        // 🔴 CRITICAL: Generatsiya vaqtida faqat POST ishlatiladi (forcePost: true)
+        print('🔄 Sending POST request to /user-detail-update/ for goals/dream/happiness update (generation time)...');
         authStore
             .updateUserDetail(
               gender: existingGender,
@@ -917,6 +940,7 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
               goals: goals.isNotEmpty ? goals : (user?.goals ?? ''),
               happiness: existingHappiness,
               showToast: false, // Registratsiya paytidagi meditatsiya generatsiya qilishda toast ko'rsatmaslik
+              forcePost: true, // Generatsiya vaqtida faqat POST ishlatish
               onSuccess: () {
                 print('✅ User details updated successfully (parallel)');
               },
@@ -1177,7 +1201,7 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'This $durationMinutes min meditation weaves together your personal aspirations, gratitude, and authentic self with dreamy guidance to help manifest your dream life.',
+                            'This meditation weaves together your personal aspirations, gratitude, and authentic self with dreamy guidance to help manifest your dream life.',
                             style: const TextStyle(
                               fontFamily: 'Satoshi',
                               fontSize: 16,

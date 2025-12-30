@@ -481,20 +481,25 @@ Future<void> _updateNewUserAccount(
     // Goals va dream ni update qilish
     final goals = requestBody['goals']?.toString() ?? '';
     final dreamlife = requestBody['dreamlife']?.toString() ?? '';
+    // 🔴 CRITICAL: happiness ni requestBody'dan olish (dream_activities - bu happiness ma'lumoti)
+    final happiness = requestBody['dream_activities']?.toString() ?? '';
     
-    if (goals.isNotEmpty || dreamlife.isNotEmpty) {
+    if (goals.isNotEmpty || dreamlife.isNotEmpty || happiness.isNotEmpty) {
       try {
         // Mavjud user ma'lumotlarini olish
         final existingGender = user?.gender ?? 'male';
         final existingAgeRange = user?.ageRange ?? '25-34';
-        final existingHappiness = user?.happiness ?? '';
+        // happiness ni requestBody'dan olish, agar bo'sh bo'lsa user.happiness dan olish
+        final existingHappiness = happiness.isNotEmpty ? happiness : (user?.happiness ?? '');
         
+        // 🔴 CRITICAL: Generatsiya vaqtida faqat POST ishlatiladi (forcePost: true)
         await authStore.updateUserDetail(
           gender: existingGender,
           ageRange: existingAgeRange,
           dream: dreamlife.isNotEmpty ? dreamlife : (user?.dream ?? ''),
           goals: goals.isNotEmpty ? goals : (user?.goals ?? ''),
           happiness: existingHappiness,
+          forcePost: true, // Generatsiya vaqtida faqat POST ishlatish
           onSuccess: () {
             print('✅ User details updated successfully');
           },

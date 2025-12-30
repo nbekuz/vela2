@@ -194,11 +194,12 @@ class _OnboardingPage1State extends State<OnboardingPage1> {
         'platform': platform,
       };
 
+      // open: false - token mavjud bo'lsa yuborish kerak
       await ApiService.request(
         url: 'auth/create-device-token/',
         method: 'POST',
         data: data,
-        open: true,
+        open: false, // Token bilan yuborish kerak
       );
     } catch (e) {
       print('Error sending device token to API: $e');

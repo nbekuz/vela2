@@ -61,14 +61,15 @@ class AuthStore extends ChangeNotifier {
     if (_user == null) return false;
 
     // Check if essential profile fields are filled
+    // 🔴 CRITICAL: happiness optional field, faqat asosiy fieldlarni tekshiramiz
     final hasGender = _user!.gender != null && _user!.gender!.isNotEmpty;
     final hasAgeRange = _user!.ageRange != null && _user!.ageRange!.isNotEmpty;
     final hasDream = _user!.dream != null && _user!.dream!.isNotEmpty;
     final hasGoals = _user!.goals != null && _user!.goals!.isNotEmpty;
-    final hasHappiness =
-        _user!.happiness != null && _user!.happiness!.isNotEmpty;
+    // happiness optional - bo'sh bo'lishi mumkin
 
-    return hasGender && hasAgeRange && hasDream && hasGoals && hasHappiness;
+    // Faqat asosiy fieldlar to'liq bo'lsa, profile complete deb hisoblaymiz
+    return hasGender && hasAgeRange && hasDream && hasGoals;
   }
 
   // Check if user has selected a plan
@@ -83,27 +84,48 @@ class AuthStore extends ChangeNotifier {
 
   // Get the appropriate redirect route based on profile completion and plan status
   Future<String> getRedirectRoute() async {
-    // First check plan status from API
-    final planStatus = await checkPlanStatus();
-    if (planStatus != null) {
-      final hasActivePlan = planStatus['has_active_plan'] ?? false;
-      if (!hasActivePlan) {
-        return '/plan'; // No active plan, redirect to plan selection
+    try {
+      // First check plan status from API
+      // To'lovni tekshirish API'si comment qilindi
+      // final planStatus = await checkPlanStatus();
+      // if (planStatus != null) {
+      //   final hasActivePlan = planStatus['has_active_plan'] ?? false;
+      //   if (!hasActivePlan) {
+      //     return '/plan'; // No active plan, redirect to plan selection
+      //   }
+      // }
+
+      // If user has active plan, get user details and check profile completion
+      await getUserDetails();
+
+      // If getUserDetails() failed and user is still null, check if we have a token
+      // If token exists but user details failed, still try to redirect to generator
+      if (_user == null) {
+        // Token exists but user details couldn't be fetched - go to generator to complete profile
+        developer.log('⚠️ User details not available, redirecting to generator');
+        return '/generator';
       }
-    }
 
-    // If user has active plan, get user details and check profile completion
-    await getUserDetails();
-
-    if (!isProfileComplete()) {
-      // If profile is not complete, check which step to start from
-      if (_user?.gender == null || _user!.gender!.isEmpty) {
-        return '/generator'; // Start from gender step
+      if (!isProfileComplete()) {
+        // If profile is not complete, check which step to start from
+        if (_user?.gender == null || _user!.gender!.isEmpty) {
+          return '/generator'; // Start from gender step
+        }
+        return '/generator'; // Continue from where they left off
       }
-      return '/generator'; // Continue from where they left off
-    }
 
-    return '/dashboard'; // Profile is complete and has active plan, go to dashboard
+      return '/dashboard'; // Profile is complete and has active plan, go to dashboard
+    } catch (e) {
+      developer.log('❌ Error in getRedirectRoute: $e');
+      // If there's an error but token exists, still try to go to generator
+      // This ensures user can complete their profile even if API call fails
+      final hasToken = await isAuthenticated();
+      if (hasToken) {
+        return '/generator';
+      }
+      // If no token, this will be handled by loading screen
+      rethrow;
+    }
   }
 
   // Actions (Pinia actions ga o'xshash)
@@ -668,6 +690,14 @@ class AuthStore extends ChangeNotifier {
       }
     } catch (e) {
       developer.log('❌ Get user details error: $e');
+      // Don't clear user state if error occurs - let getRedirectRoute() handle it
+      // This ensures that if API call fails but token exists, user can still complete profile
+      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
+        // Token might be expired - but don't clear it here, let the calling function decide
+        developer.log('⚠️ Authentication error - token may be expired');
+      }
+      // Don't rethrow - let calling function check _user state and handle accordingly
+      // This allows getRedirectRoute() to check if _user is null and redirect appropriately
     }
   }
 
@@ -900,6 +930,8 @@ class AuthStore extends ChangeNotifier {
   }
 
   // Check plan status from API
+  // To'lovni tekshirish API'si comment qilindi
+  /*
   Future<Map<String, dynamic>?> checkPlanStatus() async {
     try {
       final response = await ApiService.request(
@@ -917,6 +949,7 @@ class AuthStore extends ChangeNotifier {
       return null;
     }
   }
+  */
 
   // Helper method to format age range to required format
   String _formatAgeRange(String ageRange) {
@@ -964,6 +997,7 @@ class AuthStore extends ChangeNotifier {
     required String happiness,
     VoidCallback? onSuccess,
     bool showToast = true, // Default true, registratsiya paytida false qilish mumkin
+    bool forcePost = false, // Generatsiya vaqtida faqat POST ishlatish uchun
   }) async {
     print('🔄 [updateUserDetail] Starting user detail update...');
     print('🔄 [updateUserDetail] gender: $gender');
@@ -1001,16 +1035,55 @@ class AuthStore extends ChangeNotifier {
       // Django requires trailing slash for PUT requests with APPEND_SLASH enabled
       String endpoint = 'auth/user-detail-update/';
       
-      // 🔴 CRITICAL: Agar user ma'lumotlari bo'lmasa (yangi user), POST yuborish kerak
-      // User detail mavjudligini tekshirish - gender, ageRange, dream, goals, happiness
-      final hasUserDetails = _user != null &&
-          (_user!.gender != null && _user!.gender!.isNotEmpty) &&
-          (_user!.ageRange != null && _user!.ageRange!.isNotEmpty);
+      // 🔴 CRITICAL: Generatsiya vaqtida faqat POST ishlatiladi, PUT faqat profile update uchun
+      // Agar forcePost true bo'lsa, GET tekshiruvini o'tkazib yuboramiz va to'g'ridan-to'g'ri POST ishlatamiz
+      bool hasUserDetails = false;
+      String method;
       
-      // Method ni aniqlash: agar user detail bo'lmasa POST, aks holda PUT
-      final method = hasUserDetails ? 'PUT' : 'POST';
+      if (forcePost) {
+        // Generatsiya vaqtida - faqat POST
+        print('🔄 [updateUserDetail] forcePost=true, using POST (generation time)');
+        method = 'POST';
+      } else {
+        // Profile update vaqtida - dastlab GET so'rovi yuborib, ma'lumot mavjudligini tekshirish
+        // Agar ma'lumot bo'lmasa POST, bo'lsa PUT yuborish kerak
+        try {
+          print('🔄 [updateUserDetail] Checking if user details exist via GET request...');
+          final checkResponse = await ApiService.request(
+            url: endpoint,
+            method: 'GET',
+            open: false, // Token required
+          );
+          
+          // Agar GET muvaffaqiyatli bo'lsa va ma'lumot mavjud bo'lsa
+          if (checkResponse.statusCode == 200 && checkResponse.data != null) {
+            final detailData = checkResponse.data;
+            // Ma'lumot mavjudligini tekshirish - gender va age_range mavjudligini tekshirish
+            hasUserDetails = detailData is Map && 
+                            (detailData['gender'] != null && detailData['gender'].toString().isNotEmpty) &&
+                            (detailData['age_range'] != null && detailData['age_range'].toString().isNotEmpty);
+            
+            print('🔄 [updateUserDetail] GET response: $detailData');
+            print('🔄 [updateUserDetail] User details exist: $hasUserDetails');
+          } else {
+            print('🔄 [updateUserDetail] GET response is empty or null, using POST');
+            hasUserDetails = false;
+          }
+        } catch (e) {
+          // Agar GET xatolik bersa (masalan 404), bu yangi user ekanligini anglatadi
+          print('🔄 [updateUserDetail] GET request failed (likely 404): $e');
+          print('🔄 [updateUserDetail] This means user details don\'t exist, using POST');
+          hasUserDetails = false;
+        }
+        
+        // Method ni aniqlash: agar user detail bo'lmasa POST, aks holda PUT
+        method = hasUserDetails ? 'PUT' : 'POST';
+      }
       
-      print('🔄 [updateUserDetail] User has details: $hasUserDetails');
+      // Log'ni faqat forcePost=false bo'lganda chiqarish (profile update vaqtida)
+      if (!forcePost) {
+        print('🔄 [updateUserDetail] User has details: $hasUserDetails');
+      }
       print('🔄 [updateUserDetail] Using method: $method');
       print('🔄 [updateUserDetail] Trying endpoint: $endpoint');
       print('🔄 [updateUserDetail] Full URL will be: ${ApiService.baseUrl}$endpoint');
@@ -1374,6 +1447,38 @@ class AuthStore extends ChangeNotifier {
 
       setError(errorMessage);
       // Toast will be shown from the UI layer
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Delete account action with API call
+  Future<void> deleteAccount() async {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await ApiService.request(
+        url: 'auth/user-detail/',
+        method: 'DELETE',
+        open: false, // Bu endpoint uchun token kerak
+      );
+
+      // Clear all user data after successful deletion
+      await logout();
+    } catch (e) {
+      String errorMessage = 'Failed to delete account. Please try again.';
+
+      if (e.toString().contains('400')) {
+        errorMessage = 'Invalid request. Please try again.';
+      } else if (e.toString().contains('401')) {
+        errorMessage = 'Unauthorized. Please login again.';
+      } else if (e.toString().contains('500')) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+
+      setError(errorMessage);
+      rethrow; // Re-throw to let UI handle the error
     } finally {
       setLoading(false);
     }

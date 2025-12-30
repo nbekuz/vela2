@@ -1,3 +1,5 @@
+// To'lov tizimi va to'lovni tekshirish API'si bilan bog'liq sahifa - comment qilindi
+/*
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -222,3 +224,4 @@ class SubscriptionBillingPage extends StatelessWidget {
     );
   }
 }
+*/

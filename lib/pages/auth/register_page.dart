@@ -196,7 +196,9 @@ class _RegisterPageState extends State<RegisterPage> {
         await NotificationHandler.requestNotificationPermission();
 
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/plan');
+          // To'lov tizimi sahifasi comment qilindi - to'g'ridan-to'g'ri generator'ga o'tadi
+          Navigator.pushReplacementNamed(context, '/generator');
+          // Navigator.pushReplacementNamed(context, '/plan');
         }
       },
     );

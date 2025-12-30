@@ -9,6 +9,7 @@ import 'core/stores/meditation_store.dart';
 import 'core/stores/like_store.dart';
 import 'core/stores/check_in_store.dart';
 import 'core/services/app_lifecycle_service.dart';
+import 'core/services/storekit_service.dart';
 import 'pages/loading_screen.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/auth/register_page.dart';
@@ -20,7 +21,8 @@ import 'pages/auth/onboarding_page_1.dart';
 import 'pages/auth/onboarding_page_2.dart';
 import 'pages/auth/onboarding_page_3.dart';
 import 'pages/auth/onboarding_page_4.dart';
-import 'pages/plan_page.dart';
+// To'lov tizimi sahifasi comment qilindi
+// import 'pages/plan_page.dart';
 import 'pages/generator/generator_page.dart';
 import 'pages/vault_page.dart';
 import 'pages/dashboard/my_meditations_page.dart';
@@ -115,6 +117,16 @@ void main() async {
   // Initialize app lifecycle service for uninstall detection
   final appLifecycleService = AppLifecycleService();
   await appLifecycleService.initialize();
+
+  // Initialize StoreKit Service for promo codes (Apple native)
+  try {
+    final storeKitService = StoreKitService();
+    await storeKitService.initialize();
+    print('✅ StoreKitService initialized successfully');
+  } catch (e) {
+    print('⚠️ Failed to initialize StoreKitService: $e');
+    // Continue app initialization even if StoreKitService fails
+  }
 
   await authStore.initialize();
   await meditationStore.initialize();
@@ -228,7 +240,8 @@ class MyApp extends StatelessWidget {
                     '/register': (context) => const RegisterPage(),
                     '/forgot-password': (context) => const ForgotPasswordPage(),
                     '/change-password': (context) => const ChangePasswordPage(),
-                    '/plan': (context) => const PlanPage(),
+                    // To'lov tizimi sahifasi comment qilindi
+                    // '/plan': (context) => const PlanPage(),
                     '/generator': (context) => const GeneratorPage(),
                     '/vault': (context) => const VaultPage(),
                     '/dashboard': (context) => const DashboardMainPage(),

@@ -99,11 +99,12 @@ class _RemindersPageState extends State<RemindersPage> {
       };
 
 
+      // open: false - token mavjud bo'lsa yuborish kerak (bu endpoint authentication talab qiladi)
       await ApiService.request(
         url: 'auth/create-device-token/',
         method: 'POST',
         data: data,
-        open: true, // This endpoint doesn't require authentication
+        open: false, // Token bilan yuborish kerak
       );
     } catch (e) {
       // Silent error handling

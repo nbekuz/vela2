@@ -264,6 +264,86 @@ class SuperwallService {
     }
   }
 
+  /// Redeem promo code and show discounted paywall
+  /// 
+  /// This method is used for influencer promo codes (100% off offers)
+  /// 
+  /// [promoCode] - Promo code entered by user (e.g., "INFLUENCER123")
+  /// [userId] - User ID to identify user in Superwall
+  /// 
+  /// How it works:
+  /// 1. User enters promo code in the app
+  /// 2. This method registers a placement for the promo code campaign
+  /// 3. Superwall shows a discounted paywall (100% off) based on dashboard configuration
+  /// 4. User subscribes with the promo code applied
+  /// 
+  /// Setup required in Superwall Dashboard:
+  /// 1. Create a promo offer with 100% discount
+  /// 2. Create a campaign for promo codes
+  /// 3. Create a placement (e.g., "promo_code") for the campaign
+  /// 4. Assign the promo offer to the paywall in the campaign
+  /// 
+  /// See SUPERWALL_PROMO_CODES.md for detailed setup instructions
+  Future<void> redeemPromoCode(String promoCode, {String? userId}) async {
+    try {
+      if (!_isInitialized) {
+        developer.log('⚠️ SuperwallKit not initialized. Cannot redeem promo code.');
+        print('⚠️ SuperwallKit not initialized. Cannot redeem promo code.');
+        throw Exception('SuperwallKit not initialized');
+      }
+
+      print('🔵 ========== Redeeming Promo Code ==========');
+      print('🔵 Promo code: $promoCode');
+      print('🔵 User ID: ${userId ?? "not provided"}');
+      developer.log('🔵 Redeeming promo code: $promoCode');
+
+      // Identify user if provided
+      if (userId != null && userId.isNotEmpty) {
+        try {
+          print('🔵 Identifying user with Superwall: $userId');
+          await Superwall.shared.identify(userId);
+          print('✅ User identified successfully');
+          developer.log('✅ User identified with SuperwallKit: $userId');
+        } catch (e) {
+          print('⚠️ Warning: Failed to identify user: $e');
+          developer.log('⚠️ Warning: Failed to identify user: $e');
+        }
+      }
+
+      // Register placement for promo code campaign
+      // The placement name should match the promo code campaign in Superwall dashboard
+      // Example placement names:
+      // - "promo_code" (general promo code placement)
+      // - "promo_code_$promoCode" (specific promo code placement)
+      // 
+      // Note: You can create multiple placements for different promo codes
+      // or use a single "promo_code" placement that handles all promo codes
+      final placementName = 'promo_code'; // Change this to match your Superwall dashboard placement
+      
+      print('🔵 Registering placement: $placementName');
+      print('💡 Make sure this placement exists in Superwall dashboard');
+      print('💡 The placement should have a paywall with promo offer (100% discount)');
+      
+      // Use the existing showPaywall method to show the discounted paywall
+      await showPaywall(placementName, userId: userId);
+      
+      print('✅ Promo code redeemed successfully: $promoCode');
+      developer.log('✅ Promo code redeemed: $promoCode');
+    } catch (e, stackTrace) {
+      print('❌ ========== ERROR REDEEMING PROMO CODE ==========');
+      print('❌ Error: $e');
+      print('🔵 Stack trace: $stackTrace');
+      developer.log('❌ Error redeeming promo code: $e');
+      developer.log('🔵 Stack trace: $stackTrace');
+      developer.log('💡 Make sure:');
+      developer.log('   1. SuperwallKit is initialized');
+      developer.log('   2. Placement "promo_code" exists in Superwall dashboard');
+      developer.log('   3. Campaign is active in Superwall dashboard');
+      developer.log('   4. Paywall has promo offer (100% discount) assigned');
+      rethrow;
+    }
+  }
+
   bool get isInitialized => _isInitialized;
   String? get apiKey => _apiKey;
 }

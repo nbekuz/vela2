@@ -4,10 +4,12 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../shared/widgets/stars_animation.dart';
+import '../../shared/widgets/delete_account_modal.dart';
 import '../../core/stores/auth_store.dart';
 import '../../core/services/token_cleanup_test.dart';
 import 'main.dart';
-import 'subscription_billing_page.dart';
+// To'lov tizimi sahifasi comment qilindi
+// import 'subscription_billing_page.dart';
 import 'privacy_security_page.dart';
 import 'help_support_page.dart';
 import 'about_vela_page.dart';
@@ -142,10 +144,11 @@ class SettingsPage extends StatelessWidget {
     final settingsItems = [
       {'title': 'Edit Info', 'onTap': () => _navigateToEditInfo(context)},
       {'title': 'Reminders', 'onTap': () => _navigateToReminders(context)},
-      {
-        'title': 'Subscription & Billing',
-        'onTap': () => _navigateToSubscriptionBilling(context),
-      },
+      // To'lov tizimi sahifasi comment qilindi
+      // {
+      //   'title': 'Subscription & Billing',
+      //   'onTap': () => _navigateToSubscriptionBilling(context),
+      // },
       {
         'title': 'Privacy & Security',
         'onTap': () => _navigateToPrivacySecurity(context),
@@ -155,6 +158,7 @@ class SettingsPage extends StatelessWidget {
         'onTap': () => _navigateToHelpSupport(context),
       },
       {'title': 'About Vela', 'onTap': () => _navigateToAboutVela(context)},
+      {'title': 'Delete Account', 'onTap': () => _handleDeleteAccount(context)},
       {'title': 'Log out', 'onTap': () => _handleLogout(context)},
     ];
 
@@ -193,6 +197,10 @@ class SettingsPage extends StatelessWidget {
       ),
       onTap: onTap,
     );
+  }
+
+  void _handleDeleteAccount(BuildContext context) {
+    DeleteAccountModal.show(context);
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -234,12 +242,13 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
-  void _navigateToSubscriptionBilling(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SubscriptionBillingPage()),
-    );
-  }
+  // To'lov tizimi sahifasi comment qilindi
+  // void _navigateToSubscriptionBilling(BuildContext context) {
+  //   Navigator.push(
+  //     context,
+  //     MaterialPageRoute(builder: (context) => const SubscriptionBillingPage()),
+  //   );
+  // }
 
   void _navigateToPrivacySecurity(BuildContext context) {
     Navigator.push(

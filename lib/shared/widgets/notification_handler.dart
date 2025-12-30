@@ -93,14 +93,16 @@ class NotificationHandler {
         'platform': platform,
       };
       
+      // open: false - token mavjud bo'lsa yuborish kerak (register/login qilgandan keyin)
       await ApiService.request(
         url: 'auth/create-device-token/',
         method: 'POST',
         data: data,
-        open: true,
+        open: false, // Token bilan yuborish kerak
       );
     } catch (e) {
-      // Silent error handling
+      // Silent error handling - xatolik bo'lsa ham app ishlashda davom etadi
+      print('⚠️ Error sending device token: $e');
     }
   }
 } 

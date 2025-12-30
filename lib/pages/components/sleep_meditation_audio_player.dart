@@ -128,7 +128,7 @@ class _SleepMeditationAudioPlayerState
         ),
         const SizedBox(height: 10),
         Text(
-          'This $duration min meditation weaves together your personal aspirations, gratitude, and authentic self with dreamy guidance to help manifest your dream life.',
+          'This meditation weaves together your personal aspirations, gratitude, and authentic self with dreamy guidance to help manifest your dream life.',
           style: const TextStyle(
             fontFamily: 'Satoshi',
             fontSize: 16,

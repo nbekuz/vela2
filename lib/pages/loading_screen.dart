@@ -53,20 +53,31 @@ class _LoadingScreenState extends State<LoadingScreen>
       try {
         final redirectRoute = await authStore.getRedirectRoute().timeout(
           const Duration(seconds: 10),
-          onTimeout: () => '/dashboard', // Default to dashboard if timeout
+          onTimeout: () {
+            // If timeout but token exists, go to generator to complete profile
+            return '/generator';
+          },
         );
 
         // Show splash screen for a short time
-        await Future.delayed(const Duration(seconds: 5));
+        await Future.delayed(const Duration(seconds: 2));
 
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed(redirectRoute);
         return;
       } catch (e) {
-        // If there's an error, go to dashboard
-        await Future.delayed(const Duration(seconds: 5));
+        // If there's an error but token exists, still try to go to generator
+        // This ensures user can complete their profile even if API call fails
+        final stillAuthenticated = await authStore.isAuthenticated();
+        await Future.delayed(const Duration(seconds: 2));
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/dashboard');
+        if (stillAuthenticated) {
+          // Token exists but API failed - go to generator to complete profile
+          Navigator.of(context).pushReplacementNamed('/generator');
+        } else {
+          // Token was cleared or invalid - go to onboarding
+          Navigator.of(context).pushReplacementNamed('/onboarding-1');
+        }
         return;
       }
     }
