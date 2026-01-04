@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../themes/app_styles.dart';
 import '../models/meditation_profile_data.dart';
 import '../../core/stores/meditation_store.dart';
+import '../../core/services/storekit_service.dart';
+import '../../core/services/revenuecat_service.dart';
 import 'package:vela/pages/meditation_streaming_page.dart';
 
 class RitualInfoModal extends StatelessWidget {
@@ -118,6 +120,7 @@ class _CustomizeRitualModalState extends State<CustomizeRitualModal> {
   late String tone;
   late String voice;
   late int duration;
+  bool _isCheckingSubscription = false; // Loading state for subscription check
 
   final List<Map<String, String>> ritualTypes = [
     {'label': 'Guided Meditations', 'value': 'guided'},
@@ -377,32 +380,85 @@ class _CustomizeRitualModalState extends State<CustomizeRitualModal> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          // To'g'ridan-to'g'ri meditation_streaming_page ga o'tish
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MeditationStreamingPage(),
-                            ),
-                          );
+                        onPressed: _isCheckingSubscription ? null : () async {
+                          // Obuna tekshirish - agar obuna yo'q bo'lsa plan page'ga o'tish
+                          setState(() {
+                            _isCheckingSubscription = true; // Show loading
+                          });
+
+                          try {
+                            // Try RevenueCat first, then fallback to StoreKit
+                            final revenueCatService = RevenueCatService();
+                            bool hasActivePlan = false;
+                            
+                            if (revenueCatService.isAvailable) {
+                              hasActivePlan = await revenueCatService.hasActivePurchase();
+                            } else {
+                              final storeKitService = StoreKitService();
+                              if (storeKitService.isAvailable) {
+                                hasActivePlan = await storeKitService.hasActivePurchase();
+                              }
+                            }
+                            
+                            if (!mounted) return;
+                            
+                            if (!hasActivePlan) {
+                              // Obuna yo'q - plan page'ga o'tish
+                              Navigator.of(context).pop(); // Modal'ni yopish
+                              Navigator.pushReplacementNamed(context, '/plan');
+                              return;
+                            }
+                            
+                            // Obuna bor - meditation_streaming_page ga o'tish
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MeditationStreamingPage(),
+                              ),
+                            );
+                          } catch (e) {
+                            // Xatolik bo'lsa ham plan page'ga o'tish (xavfsizlik uchun)
+                            print('⚠️ Error checking subscription: $e');
+                            if (mounted) {
+                              Navigator.of(context).pop(); // Modal'ni yopish
+                              Navigator.pushReplacementNamed(context, '/plan');
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                _isCheckingSubscription = false; // Hide loading
+                              });
+                            }
+                          }
                         },
                         style: AppStyles.modalButton,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Generate My Meditation',
-                              style: AppStyles.buttonTextSmall,
-                            ),
-                            SizedBox(width: 12),
-                            Image.asset(
-                              'assets/img/star.png',
-                              width: 22,
-                              height: 22,
-                            ),
-                          ],
-                        ),
+                        child: _isCheckingSubscription
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFFF2EFEA),
+                                  ),
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'Generate My Meditation',
+                                    style: AppStyles.buttonTextSmall,
+                                  ),
+                                  SizedBox(width: 12),
+                                  Image.asset(
+                                    'assets/img/star.png',
+                                    width: 22,
+                                    height: 22,
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
                   ],

@@ -31,6 +31,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
+  bool _isCheckingRoute = false; // Loading state for route checking
   late KeyboardVisibilityController _keyboardVisibilityController;
 
   @override
@@ -55,21 +56,38 @@ class _LoginPageState extends State<LoginPage> {
 
     await authStore.loginWithApple(
       onSuccess: () async {
-        print('🍎 Existing user - redirecting to dashboard');
+        print('🍎 Existing user - redirecting to appropriate route');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(context, message: 'Welcome back!');
 
           // Request notification permission and send device token
           await NotificationHandler.requestNotificationPermission();
 
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          // Get the appropriate redirect route based on profile completion and plan status
+          final authStore = context.read<AuthStore>();
+          final redirectRoute = await authStore.getRedirectRoute();
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
       onNewUser: () async {
         print('🍎 Profile incomplete - redirecting to appropriate step');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(
             context,
             message: 'Welcome! Let\'s complete your profile',
@@ -89,7 +107,13 @@ class _LoginPageState extends State<LoginPage> {
           // Get the appropriate redirect route based on profile completion
           final authStore = context.read<AuthStore>();
           final redirectRoute = await authStore.getRedirectRoute();
-          Navigator.pushReplacementNamed(context, redirectRoute);
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
     );
@@ -104,7 +128,7 @@ class _LoginPageState extends State<LoginPage> {
 
     await authStore.loginWithGoogle(
       onSuccess: () async {
-        print('🔍 Existing user - redirecting to dashboard');
+        print('🔍 Existing user - redirecting to appropriate route');
 
         if (mounted) {
           ToastService.showSuccessToast(context, message: 'Welcome back!');
@@ -112,13 +136,20 @@ class _LoginPageState extends State<LoginPage> {
           // Request notification permission and send device token
           await NotificationHandler.requestNotificationPermission();
 
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          // Get the appropriate redirect route based on profile completion and plan status
+          final authStore = context.read<AuthStore>();
+          final redirectRoute = await authStore.getRedirectRoute();
+          Navigator.pushReplacementNamed(context, redirectRoute);
         }
       },
       onNewUser: () async {
         print('🔍 Profile incomplete - redirecting to appropriate step');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(
             context,
             message: 'Welcome! Let\'s complete your profile',
@@ -138,7 +169,13 @@ class _LoginPageState extends State<LoginPage> {
           // Get the appropriate redirect route based on profile completion
           final authStore = context.read<AuthStore>();
           final redirectRoute = await authStore.getRedirectRoute();
-          Navigator.pushReplacementNamed(context, redirectRoute);
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
     );
@@ -163,15 +200,28 @@ class _LoginPageState extends State<LoginPage> {
       email: _emailController.text.trim(),
       password: _passwordController.text,
       onSuccess: () async {
-        print('🔍 Existing user - redirecting to dashboard');
+        print('🔍 Existing user - redirecting to appropriate route');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(context, message: 'Welcome back!');
 
           // Request notification permission and send device token
           await NotificationHandler.requestNotificationPermission();
 
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          // Get the appropriate redirect route based on profile completion and plan status
+          final authStore = context.read<AuthStore>();
+          final redirectRoute = await authStore.getRedirectRoute();
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
       onNewUser: () async {
@@ -180,6 +230,10 @@ class _LoginPageState extends State<LoginPage> {
         );
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(
             context,
             message: 'Welcome! Let\'s complete your profile',
@@ -191,7 +245,13 @@ class _LoginPageState extends State<LoginPage> {
           // Get the appropriate redirect route based on profile completion
           final authStore = context.read<AuthStore>();
           final redirectRoute = await authStore.getRedirectRoute();
-          Navigator.pushReplacementNamed(context, redirectRoute);
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
     );
@@ -485,10 +545,10 @@ class _LoginPageState extends State<LoginPage> {
                                                     ),
                                                     elevation: 0,
                                                   ),
-                                                  onPressed: authStore.isLoading
+                                                  onPressed: (authStore.isLoading || _isCheckingRoute)
                                                       ? null
                                                       : _handleEmailLogin,
-                                                  child: authStore.isLoading
+                                                  child: (authStore.isLoading || _isCheckingRoute)
                                                       ? const SizedBox(
                                                           width: 20,
                                                           height: 20,
@@ -541,7 +601,7 @@ class _LoginPageState extends State<LoginPage> {
                                                         onPressed:
                                                             _handleGoogleSignIn,
                                                         isLoading:
-                                                            authStore.isLoading,
+                                                            authStore.isLoading || _isCheckingRoute,
                                                       ),
                                                     ),
                                                     if (Platform.isIOS) ...[
@@ -551,8 +611,7 @@ class _LoginPageState extends State<LoginPage> {
                                                         child: AppleSignInButton(
                                                           onPressed:
                                                               _handleAppleSignIn,
-                                                          isLoading: authStore
-                                                              .isLoading,
+                                                          isLoading: authStore.isLoading || _isCheckingRoute,
                                                           text: '', // Icon only
                                                         ),
                                                       ),

@@ -13,6 +13,8 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../services/superwall_service.dart';
+import '../services/storekit_service.dart';
+import '../services/revenuecat_service.dart';
 
 // Pinia store ga o'xshash AuthStore - API chaqiruvlar va ma'lumotlarni saqlash
 class AuthStore extends ChangeNotifier {
@@ -85,27 +87,44 @@ class AuthStore extends ChangeNotifier {
   // Get the appropriate redirect route based on profile completion and plan status
   Future<String> getRedirectRoute() async {
     try {
-      // First check plan status from API
-      // To'lovni tekshirish API'si comment qilindi
-      // final planStatus = await checkPlanStatus();
-      // if (planStatus != null) {
-      //   final hasActivePlan = planStatus['has_active_plan'] ?? false;
-      //   if (!hasActivePlan) {
-      //     return '/plan'; // No active plan, redirect to plan selection
-      //   }
-      // }
-
-      // If user has active plan, get user details and check profile completion
+      // Get user details to check gender and profile completion
       await getUserDetails();
 
-      // If getUserDetails() failed and user is still null, check if we have a token
-      // If token exists but user details failed, still try to redirect to generator
+      // Check if user has active purchase using RevenueCat (preferred) or StoreKit (fallback)
+      bool hasActivePlan = false;
+      try {
+        // Try RevenueCat first
+        final revenueCatService = RevenueCatService();
+        if (revenueCatService.isAvailable) {
+          hasActivePlan = await revenueCatService.hasActivePurchase();
+          developer.log('🔄 RevenueCat purchase check: hasActivePlan=$hasActivePlan');
+        } else {
+          // Fallback to StoreKit
+          final storeKitService = StoreKitService();
+          if (storeKitService.isAvailable) {
+            hasActivePlan = await storeKitService.hasActivePurchase();
+            developer.log('🔄 StoreKit purchase check: hasActivePlan=$hasActivePlan');
+          } else {
+            developer.log('⚠️ Neither RevenueCat nor StoreKit available');
+          }
+        }
+      } catch (e) {
+        developer.log('⚠️ Error checking purchase: $e');
+        // If purchase check fails, don't redirect to plan page - let user complete profile first
+      }
+
+      // If getUserDetails() failed and user is still null, go to generator to complete profile
       if (_user == null) {
         // Token exists but user details couldn't be fetched - go to generator to complete profile
         developer.log('⚠️ User details not available, redirecting to generator');
         return '/generator';
       }
 
+      // Register qilingach darrov plan page'ga o'tmasligi kerak
+      // Dastlab profile to'liq bo'lishi kerak, keyin generate meditation tugmasini bosganda obuna tekshiriladi
+      // Shuning uchun bu yerda plan check qilmaymiz - faqat profile completion tekshiramiz
+
+      // If user has active plan but profile is not complete, go to generator
       if (!isProfileComplete()) {
         // If profile is not complete, check which step to start from
         if (_user?.gender == null || _user!.gender!.isEmpty) {
@@ -117,10 +136,12 @@ class AuthStore extends ChangeNotifier {
       return '/dashboard'; // Profile is complete and has active plan, go to dashboard
     } catch (e) {
       developer.log('❌ Error in getRedirectRoute: $e');
-      // If there's an error but token exists, still try to go to generator
-      // This ensures user can complete their profile even if API call fails
+      // If there's an error but token exists, go to generator to complete profile
       final hasToken = await isAuthenticated();
       if (hasToken) {
+        // Register qilingach darrov plan page'ga o'tmasligi kerak
+        // Dastlab profile to'liq bo'lishi kerak
+        developer.log('🔄 Error but token exists, redirecting to generator');
         return '/generator';
       }
       // If no token, this will be handled by loading screen
@@ -930,8 +951,6 @@ class AuthStore extends ChangeNotifier {
   }
 
   // Check plan status from API
-  // To'lovni tekshirish API'si comment qilindi
-  /*
   Future<Map<String, dynamic>?> checkPlanStatus() async {
     try {
       final response = await ApiService.request(
@@ -949,7 +968,6 @@ class AuthStore extends ChangeNotifier {
       return null;
     }
   }
-  */
 
   // Helper method to format age range to required format
   String _formatAgeRange(String ageRange) {

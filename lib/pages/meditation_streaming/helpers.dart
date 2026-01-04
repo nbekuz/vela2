@@ -180,14 +180,14 @@ Future<Map<String, dynamic>> buildRequestBody(BuildContext? context) async {
         } catch (e) {
           print('⚠️ [buildRequestBody] Error fetching check-in from API: $e');
           // Fallback: user.checkIns dan olish
-          if (user != null && user.checkIns.isNotEmpty) {
-            final lastCheckIn = user.checkIns.last;
-            // Avval description ni tekshirish, bo'sh bo'lsa checkInChoice ni olish
-            checkIn = lastCheckIn.description.isNotEmpty
-                ? lastCheckIn.description
-                : lastCheckIn.checkInChoice.isNotEmpty
-                    ? lastCheckIn.checkInChoice
-                    : "string";
+        if (user != null && user.checkIns.isNotEmpty) {
+          final lastCheckIn = user.checkIns.last;
+          // Avval description ni tekshirish, bo'sh bo'lsa checkInChoice ni olish
+          checkIn = lastCheckIn.description.isNotEmpty
+              ? lastCheckIn.description
+              : lastCheckIn.checkInChoice.isNotEmpty
+                  ? lastCheckIn.checkInChoice
+                  : "string";
             print('✅ [buildRequestBody] Using check-in from user.checkIns: $checkIn');
           }
         }

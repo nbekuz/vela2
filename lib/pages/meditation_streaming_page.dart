@@ -1017,14 +1017,33 @@ class _MeditationStreamingPageState extends State<MeditationStreamingPage> {
       if (durationMinutes < 1) durationMinutes = 1;
     }
 
-    // Get title based on ritual type
-    final title = storedRitualType == '1'
-        ? 'Sleep Manifestation'
-        : storedRitualType == '2'
-        ? 'Morning Spark'
-        : storedRitualType == '3'
-        ? 'Calming Reset'
-        : 'Dream Visualizer';
+    // Get meditation name from profileData to determine title
+    final meditationName = profileData?.name ?? 
+                          profileData?.ritual?['name']?.toString() ??
+                          profileData?.details?['name']?.toString();
+    
+    // Determine title based on meditation name first, then storedRitualType
+    final title = meditationName != null
+        ? (meditationName.toLowerCase().contains('sleep')
+            ? 'Sleep Manifestation'
+            : meditationName.toLowerCase().contains('morning')
+            ? 'Morning Spark'
+            : meditationName.toLowerCase().contains('calming')
+            ? 'Calming Reset'
+            : storedRitualType == '1'
+            ? 'Sleep Manifestation'
+            : storedRitualType == '2'
+            ? 'Morning Spark'
+            : storedRitualType == '3'
+            ? 'Calming Reset'
+            : 'Dream Visualizer')
+        : (storedRitualType == '1'
+            ? 'Sleep Manifestation'
+            : storedRitualType == '2'
+            ? 'Morning Spark'
+            : storedRitualType == '3'
+            ? 'Calming Reset'
+            : 'Dream Visualizer');
 
     // Get image path based on ritual type
     final imagePath = storedRitualType == '1'

@@ -5,7 +5,6 @@ import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../styles/base_styles.dart';
 import '../../styles/pages/login_page_styles.dart';
@@ -19,7 +18,6 @@ import '../../shared/widgets/notification_handler.dart';
 import '../../shared/widgets/google_signin_button.dart';
 import '../../shared/widgets/apple_signin_button.dart';
 import 'dart:io';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -36,6 +34,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
   bool _isAgree = true;
+  bool _isCheckingRoute = false; // Loading state for route checking
   String? _termsError;
 
   @override
@@ -56,6 +55,10 @@ class _RegisterPageState extends State<RegisterPage> {
         print('🍎 Existing user - redirecting to appropriate route');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(context, message: 'Welcome back!');
 
           // Request notification permission and send device token
@@ -64,13 +67,23 @@ class _RegisterPageState extends State<RegisterPage> {
           // Get the appropriate redirect route based on profile completion
           final authStore = context.read<AuthStore>();
           final redirectRoute = await authStore.getRedirectRoute();
-          Navigator.pushReplacementNamed(context, redirectRoute);
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
       onNewUser: () async {
         print('🍎 Profile incomplete - redirecting to appropriate step');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(
             context,
             message: 'Welcome! Let\'s complete your profile',
@@ -90,7 +103,13 @@ class _RegisterPageState extends State<RegisterPage> {
           // Get the appropriate redirect route based on profile completion
           final authStore = context.read<AuthStore>();
           final redirectRoute = await authStore.getRedirectRoute();
-          Navigator.pushReplacementNamed(context, redirectRoute);
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
     );
@@ -115,6 +134,10 @@ class _RegisterPageState extends State<RegisterPage> {
         print('🔍 Existing user - redirecting to appropriate route');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(context, message: 'Welcome back!');
 
           // Request notification permission and send device token
@@ -123,13 +146,23 @@ class _RegisterPageState extends State<RegisterPage> {
           // Get the appropriate redirect route based on profile completion
           final authStore = context.read<AuthStore>();
           final redirectRoute = await authStore.getRedirectRoute();
-          Navigator.pushReplacementNamed(context, redirectRoute);
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
       onNewUser: () async {
         print('🔍 Profile incomplete - redirecting to appropriate step');
 
         if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+
           ToastService.showSuccessToast(
             context,
             message: 'Welcome! Let\'s complete your profile',
@@ -149,7 +182,13 @@ class _RegisterPageState extends State<RegisterPage> {
           // Get the appropriate redirect route based on profile completion
           final authStore = context.read<AuthStore>();
           final redirectRoute = await authStore.getRedirectRoute();
-          Navigator.pushReplacementNamed(context, redirectRoute);
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
     );
@@ -184,6 +223,12 @@ class _RegisterPageState extends State<RegisterPage> {
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       onSuccess: () async {
+        if (mounted) {
+          setState(() {
+            _isCheckingRoute = true; // Show loading while checking route
+          });
+        }
+
         // Save "first" variable to localStorage as true for new users
         try {
           final prefs = await SharedPreferences.getInstance();
@@ -196,9 +241,16 @@ class _RegisterPageState extends State<RegisterPage> {
         await NotificationHandler.requestNotificationPermission();
 
         if (mounted) {
-          // To'lov tizimi sahifasi comment qilindi - to'g'ridan-to'g'ri generator'ga o'tadi
-          Navigator.pushReplacementNamed(context, '/generator');
-          // Navigator.pushReplacementNamed(context, '/plan');
+          // Get the appropriate redirect route based on profile completion
+          final authStore = context.read<AuthStore>();
+          final redirectRoute = await authStore.getRedirectRoute();
+          
+          if (mounted) {
+            setState(() {
+              _isCheckingRoute = false; // Hide loading
+            });
+            Navigator.pushReplacementNamed(context, redirectRoute);
+          }
         }
       },
     );
@@ -559,10 +611,10 @@ class _RegisterPageState extends State<RegisterPage> {
                                                         elevation: 0,
                                                       ),
                                                       onPressed:
-                                                          authStore.isLoading
+                                                          (authStore.isLoading || _isCheckingRoute)
                                                           ? null
                                                           : _handleEmailRegister,
-                                                      child: authStore.isLoading
+                                                      child: (authStore.isLoading || _isCheckingRoute)
                                                           ? const SizedBox(
                                                               width: 20,
                                                               height: 20,
@@ -624,8 +676,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                                         child: GoogleSignInButton(
                                                           onPressed:
                                                               _handleGoogleSignIn,
-                                                          isLoading: authStore
-                                                              .isLoading,
+                                                          isLoading: authStore.isLoading || _isCheckingRoute,
                                                         ),
                                                       ),
                                                       if (Platform.isIOS) ...[
@@ -637,8 +688,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                                           child: AppleSignInButton(
                                                             onPressed:
                                                                 _handleAppleSignIn,
-                                                            isLoading: authStore
-                                                                .isLoading,
+                                                            isLoading: authStore.isLoading || _isCheckingRoute,
                                                             text:
                                                                 '', // Icon only
                                                           ),

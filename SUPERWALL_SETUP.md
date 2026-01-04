@@ -17,7 +17,7 @@
    - **Product ID:** `com.nbekdev.vela.annual` (yoki App Store Connect'dagi annual subscription Product ID)
    - **Type:** Subscription  
    - **Duration:** 1 year
-   - **Price:** $49/year
+   - **Price:** $49.99/year
 
 ## 2. Paywall Dizaynini Yaratish
 
@@ -55,7 +55,7 @@
    - Yana bir subscription yarating:
    - Product ID: `com.nbekdev.vela.annual` (yoki boshqa ID)
    - Duration: 1 year
-   - Price: $49/year
+   - Price: $49.99/year
 
 ## 5. Superwall'da Product ID'larni Bog'lash
 

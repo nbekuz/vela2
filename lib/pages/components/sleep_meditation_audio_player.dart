@@ -66,16 +66,34 @@ class _SleepMeditationAudioPlayerState
         meditationStore.storedRitualId ??
         '1';
 
-    // Get title - use provided title if available, otherwise use ritual type
-    final title =
-        widget.title ??
-        (storedRitualType == '1'
-            ? 'Sleep Manifestation'
-            : storedRitualType == '2'
-            ? 'Morning Spark'
-            : storedRitualType == '3'
-            ? 'Calming Reset'
-            : 'Dream Visualizer');
+    // Get meditation name from profileData to determine title
+    final meditationName = widget.profileData?.name ?? 
+                          widget.profileData?.ritual?['name']?.toString() ??
+                          widget.profileData?.details?['name']?.toString();
+    
+    // Determine title based on meditation name first, then storedRitualType
+    final title = widget.title ??
+        (meditationName != null
+            ? (meditationName.toLowerCase().contains('sleep')
+                ? 'Sleep Manifestation'
+                : meditationName.toLowerCase().contains('morning')
+                ? 'Morning Spark'
+                : meditationName.toLowerCase().contains('calming')
+                ? 'Calming Reset'
+                : storedRitualType == '1'
+                ? 'Sleep Manifestation'
+                : storedRitualType == '2'
+                ? 'Morning Spark'
+                : storedRitualType == '3'
+                ? 'Calming Reset'
+                : 'Dream Visualizer')
+            : (storedRitualType == '1'
+                ? 'Sleep Manifestation'
+                : storedRitualType == '2'
+                ? 'Morning Spark'
+                : storedRitualType == '3'
+                ? 'Calming Reset'
+                : 'Dream Visualizer'));
 
     // Get image - use provided imageUrl if available, otherwise use ritual type
     final imagePath =

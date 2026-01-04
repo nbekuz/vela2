@@ -23,12 +23,12 @@ class AudioPlayerService {
     if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
       // URL - setUrl ishlatish
       await _player.setUrl(filePathOrUrl);
-    } else {
+      } else {
       // Local file path - setFilePath ishlatish
       await _player.setFilePath(filePathOrUrl);
     }
     
-    if (initialPosition != null && initialPosition.inMilliseconds > 0) {
+      if (initialPosition != null && initialPosition.inMilliseconds > 0) {
       await _player.seek(initialPosition);
     }
   }
@@ -61,7 +61,7 @@ class AudioPlayerService {
   void disposeSync() {
     try {
       _player.dispose();
-    } catch (e) {
+      } catch (e) {
       print('⚠️ [AudioPlayerService] Error in sync dispose: $e');
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 import 'dart:developer' as developer;
+import 'dart:async';
 
 /// StoreKit Service for handling promo codes and promotional offers
 /// Apple StoreKit orqali promo kodlar va promotional offers bilan ishlash
@@ -108,17 +109,28 @@ class StoreKitService {
       
       if (response.notFoundIDs.isNotEmpty) {
         print('⚠️ Products not found: ${response.notFoundIDs}');
+        print('⚠️ Requested product IDs: $productIds');
         developer.log('⚠️ Products not found: ${response.notFoundIDs}');
+        developer.log('⚠️ Requested product IDs: $productIds');
+        
+        // Throw exception with detailed information
+        throw Exception('Products not found: ${response.notFoundIDs.join(", ")}. Please check App Store Connect configuration.');
       }
 
       if (response.error != null) {
         print('❌ Error querying products: ${response.error}');
+        print('❌ Error code: ${response.error!.code}');
+        print('❌ Error message: ${response.error!.message}');
+        print('❌ Requested product IDs: $productIds');
         developer.log('❌ Error querying products: ${response.error}');
         // Throw exception with error details for better error handling
         throw Exception('StoreKit error: ${response.error!.code} - ${response.error!.message}');
       }
 
       print('✅ Found ${response.productDetails.length} products');
+      for (var product in response.productDetails) {
+        print('  - ${product.id}: ${product.title} (${product.price})');
+      }
       developer.log('✅ Found ${response.productDetails.length} products');
       
       return response.productDetails;
@@ -248,6 +260,95 @@ class StoreKitService {
       print('❌ Error restoring purchases: $e');
       developer.log('❌ Error restoring purchases: $e');
       developer.log('🔵 Stack trace: $stackTrace');
+    }
+  }
+
+  /// Check if user has active purchase/subscription
+  /// Returns true if user has purchased or restored any subscription product
+  Future<bool> hasActivePurchase() async {
+    if (!_isAvailable) {
+      print('⚠️ In-App Purchase is not available');
+      return false;
+    }
+
+    try {
+      print('🔵 Checking for active purchases...');
+      developer.log('🔵 Checking for active purchases...');
+
+      // Product IDs to check
+      final productIds = {
+        'com.nbekdev.vela.month',
+        'com.nbekdev.vela.year',
+      };
+
+      // Get past purchases from StoreKit
+      // Note: restorePurchases() triggers purchase stream, but we need to check existing purchases
+      // For iOS, we can use the purchase stream listener to check for restored purchases
+      // But for a synchronous check, we'll use a different approach
+      
+      // Create a completer to wait for purchase stream response
+      final completer = Completer<bool>();
+      bool hasActivePurchase = false;
+      
+      // Listen to purchase stream temporarily
+      late StreamSubscription<List<PurchaseDetails>> subscription;
+      subscription = _inAppPurchase.purchaseStream.listen(
+        (List<PurchaseDetails> purchaseDetailsList) {
+          for (final PurchaseDetails purchaseDetails in purchaseDetailsList) {
+            if (purchaseDetails.status == PurchaseStatus.purchased ||
+                purchaseDetails.status == PurchaseStatus.restored) {
+              // Check if it's one of our subscription products
+              if (productIds.contains(purchaseDetails.productID)) {
+                print('✅ Found active purchase: ${purchaseDetails.productID}');
+                developer.log('✅ Found active purchase: ${purchaseDetails.productID}');
+                hasActivePurchase = true;
+                if (!completer.isCompleted) {
+                  completer.complete(true);
+                }
+                subscription.cancel();
+                return;
+              }
+            }
+          }
+        },
+        onError: (error) {
+          print('❌ Error checking purchases: $error');
+          developer.log('❌ Error checking purchases: $error');
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+          subscription.cancel();
+        },
+      );
+
+      // Trigger restore to check for existing purchases
+      await _inAppPurchase.restorePurchases();
+
+      // Wait for response with timeout
+      try {
+        hasActivePurchase = await completer.future.timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            print('⏳ Purchase check timeout - assuming no active purchase');
+            developer.log('⏳ Purchase check timeout - assuming no active purchase');
+            subscription.cancel();
+            return false;
+          },
+        );
+      } catch (e) {
+        print('⚠️ Error waiting for purchase check: $e');
+        developer.log('⚠️ Error waiting for purchase check: $e');
+        subscription.cancel();
+        return false;
+      }
+
+      subscription.cancel();
+      return hasActivePurchase;
+    } catch (e, stackTrace) {
+      print('❌ Error checking active purchase: $e');
+      developer.log('❌ Error checking active purchase: $e');
+      developer.log('🔵 Stack trace: $stackTrace');
+      return false;
     }
   }
 
