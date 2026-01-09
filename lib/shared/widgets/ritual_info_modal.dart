@@ -410,12 +410,12 @@ class _CustomizeRitualModalState extends State<CustomizeRitualModal> {
                             }
                             
                             // Obuna bor - meditation_streaming_page ga o'tish
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MeditationStreamingPage(),
-                              ),
-                            );
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MeditationStreamingPage(),
+                            ),
+                          );
                           } catch (e) {
                             // Xatolik bo'lsa ham plan page'ga o'tish (xavfsizlik uchun)
                             print('⚠️ Error checking subscription: $e');
@@ -444,21 +444,21 @@ class _CustomizeRitualModalState extends State<CustomizeRitualModal> {
                                 ),
                               )
                             : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text(
-                                    'Generate My Meditation',
-                                    style: AppStyles.buttonTextSmall,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Image.asset(
-                                    'assets/img/star.png',
-                                    width: 22,
-                                    height: 22,
-                                  ),
-                                ],
-                              ),
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Generate My Meditation',
+                              style: AppStyles.buttonTextSmall,
+                            ),
+                            SizedBox(width: 12),
+                            Image.asset(
+                              'assets/img/star.png',
+                              width: 22,
+                              height: 22,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

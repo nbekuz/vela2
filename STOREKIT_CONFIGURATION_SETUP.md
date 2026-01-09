@@ -6,8 +6,8 @@ Bu file iOS Simulator'da in-app purchase'larni test qilish uchun kerak.
 
 `ios/Runner/Products.storekit` file yaratildi va quyidagi product'lar bilan sozlangan:
 
-- **Monthly Subscription**: `com.nbekdev.vela.month` - $9.99/month
-- **Annual Subscription**: `com.nbekdev.vela.year` - $49.99/year
+- **Monthly Subscription**: `com.nbekdev.vela.monthly` - $9.99/month
+- **Annual Subscription**: `com.nbekdev.vela.annual` - $49.99/year
 
 Har ikkala subscription'da 3 kunlik free trial mavjud.
 
@@ -61,13 +61,13 @@ Agar product'lar hali ham topilmasa:
 ## 🛠️ Product ma'lumotlari
 
 ### Monthly Subscription
-- **Product ID**: `com.nbekdev.vela.month`
+- **Product ID**: `com.nbekdev.vela.monthlyly`
 - **Price**: $9.99/month
 - **Free Trial**: 3 days
 - **Subscription Period**: 1 month
 
 ### Annual Subscription
-- **Product ID**: `com.nbekdev.vela.year`
+- **Product ID**: `com.nbekdev.vela.annual`
 - **Price**: $49.99/year
 - **Free Trial**: 3 days
 - **Subscription Period**: 1 year

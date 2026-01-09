@@ -1,4 +1,14 @@
 {
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
   "identifier" : "Products",
   "nonRenewingSubscriptions" : [
 
@@ -8,6 +18,8 @@
   ],
   "settings" : {
     "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
     "_storeKitErrors" : [
       {
         "current" : null,
@@ -42,7 +54,7 @@
       {
         "current" : null,
         "enabled" : false,
-        "name" : "Manage Subscriptions"
+        "name" : "Manage Subscriptions Sheet"
       },
       {
         "current" : null,
@@ -89,11 +101,14 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.nbekdev.vela.month",
+          "productID" : "com.nbekdev.vela.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Monthly Subscription",
           "subscriptionGroupID" : "21482014",
-          "type" : "RecurringSubscription"
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         },
         {
           "adHocOffers" : [
@@ -120,18 +135,20 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.nbekdev.vela.year",
+          "productID" : "com.nbekdev.vela.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Annual Subscription",
           "subscriptionGroupID" : "21482014",
-          "type" : "RecurringSubscription"
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         }
       ]
     }
   ],
   "version" : {
-    "major" : 3,
+    "major" : 4,
     "minor" : 0
   }
 }
-

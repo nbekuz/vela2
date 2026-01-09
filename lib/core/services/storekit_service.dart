@@ -25,10 +25,32 @@ class StoreKitService {
     try {
       _isAvailable = await _inAppPurchase.isAvailable();
       
+      print('🔵 StoreKitService initialization check:');
+      print('  - isAvailable: $_isAvailable');
+      print('  - Platform: ${defaultTargetPlatform}');
+      
       if (!_isAvailable) {
         developer.log('⚠️ In-App Purchase is not available');
         print('⚠️ In-App Purchase is not available');
+        print('⚠️ Make sure you are running on a real device or simulator with StoreKit Configuration File attached');
         return;
+      }
+
+      // Test query to check if StoreKit Configuration File is loaded
+      // Try querying a test product to see if StoreKit is working
+      try {
+        final testResponse = await _inAppPurchase.queryProductDetails({'com.nbekdev.vela.monthly'});
+        print('🔵 StoreKit test query result:');
+        print('  - Found products: ${testResponse.productDetails.length}');
+        print('  - Not found IDs: ${testResponse.notFoundIDs}');
+        if (testResponse.productDetails.isNotEmpty) {
+          print('✅ StoreKit Configuration File is loaded correctly');
+        } else if (testResponse.notFoundIDs.isNotEmpty) {
+          print('⚠️ StoreKit Configuration File might not be attached to scheme');
+          print('⚠️ Please check Xcode → Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration');
+        }
+      } catch (e) {
+        print('⚠️ StoreKit test query failed: $e');
       }
 
       // Listen to purchase updates
@@ -104,17 +126,31 @@ class StoreKitService {
     }
 
     try {
+      print('🔵 Querying StoreKit for products: $productIds');
+      print('🔵 Platform: ${defaultTargetPlatform}');
+      print('🔵 StoreKit available: $_isAvailable');
+      
       final ProductDetailsResponse response =
           await _inAppPurchase.queryProductDetails(productIds);
+      
+      print('🔵 StoreKit response received:');
+      print('  - Product details count: ${response.productDetails.length}');
+      print('  - Not found IDs: ${response.notFoundIDs}');
+      print('  - Error: ${response.error}');
       
       if (response.notFoundIDs.isNotEmpty) {
         print('⚠️ Products not found: ${response.notFoundIDs}');
         print('⚠️ Requested product IDs: $productIds');
+        print('⚠️ This usually means:');
+        print('   1. StoreKit Configuration File is not attached to Xcode scheme');
+        print('   2. Simulator needs to be restarted');
+        print('   3. App needs to be run from Xcode (not Flutter)');
+        print('   4. Product IDs in StoreKit Config don\'t match code');
         developer.log('⚠️ Products not found: ${response.notFoundIDs}');
         developer.log('⚠️ Requested product IDs: $productIds');
         
         // Throw exception with detailed information
-        throw Exception('Products not found: ${response.notFoundIDs.join(", ")}. Please check App Store Connect configuration.');
+        throw Exception('Products not found: ${response.notFoundIDs.join(", ")}. Please check StoreKit Configuration File setup in Xcode.');
       }
 
       if (response.error != null) {
@@ -277,8 +313,8 @@ class StoreKitService {
 
       // Product IDs to check
       final productIds = {
-        'com.nbekdev.vela.month',
-        'com.nbekdev.vela.year',
+        'com.nbekdev.vela.monthly',
+        'com.nbekdev.vela.annual',
       };
 
       // Get past purchases from StoreKit

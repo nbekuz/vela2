@@ -64,15 +64,12 @@ class _RegisterPageState extends State<RegisterPage> {
           // Request notification permission and send device token
           await NotificationHandler.requestNotificationPermission();
 
-          // Get the appropriate redirect route based on profile completion
-          final authStore = context.read<AuthStore>();
-          final redirectRoute = await authStore.getRedirectRoute();
-          
           if (mounted) {
             setState(() {
               _isCheckingRoute = false; // Hide loading
             });
-            Navigator.pushReplacementNamed(context, redirectRoute);
+            // Register qilingandan keyin to'g'ridan-to'g'ri payment page'ga o'tish
+            Navigator.pushReplacementNamed(context, '/plan');
           }
         }
       },
@@ -100,15 +97,12 @@ class _RegisterPageState extends State<RegisterPage> {
           // Request notification permission and send device token
           await NotificationHandler.requestNotificationPermission();
 
-          // Get the appropriate redirect route based on profile completion
-          final authStore = context.read<AuthStore>();
-          final redirectRoute = await authStore.getRedirectRoute();
-          
           if (mounted) {
             setState(() {
               _isCheckingRoute = false; // Hide loading
             });
-            Navigator.pushReplacementNamed(context, redirectRoute);
+            // Register qilingandan keyin to'g'ridan-to'g'ri payment page'ga o'tish
+            Navigator.pushReplacementNamed(context, '/plan');
           }
         }
       },
@@ -143,15 +137,12 @@ class _RegisterPageState extends State<RegisterPage> {
           // Request notification permission and send device token
           await NotificationHandler.requestNotificationPermission();
 
-          // Get the appropriate redirect route based on profile completion
-          final authStore = context.read<AuthStore>();
-          final redirectRoute = await authStore.getRedirectRoute();
-          
           if (mounted) {
             setState(() {
               _isCheckingRoute = false; // Hide loading
             });
-            Navigator.pushReplacementNamed(context, redirectRoute);
+            // Register qilingandan keyin to'g'ridan-to'g'ri payment page'ga o'tish
+            Navigator.pushReplacementNamed(context, '/plan');
           }
         }
       },
@@ -179,15 +170,12 @@ class _RegisterPageState extends State<RegisterPage> {
           // Request notification permission and send device token
           await NotificationHandler.requestNotificationPermission();
 
-          // Get the appropriate redirect route based on profile completion
-          final authStore = context.read<AuthStore>();
-          final redirectRoute = await authStore.getRedirectRoute();
-          
           if (mounted) {
             setState(() {
               _isCheckingRoute = false; // Hide loading
             });
-            Navigator.pushReplacementNamed(context, redirectRoute);
+            // Register qilingandan keyin to'g'ridan-to'g'ri payment page'ga o'tish
+            Navigator.pushReplacementNamed(context, '/plan');
           }
         }
       },
@@ -241,16 +229,11 @@ class _RegisterPageState extends State<RegisterPage> {
         await NotificationHandler.requestNotificationPermission();
 
         if (mounted) {
-          // Get the appropriate redirect route based on profile completion
-          final authStore = context.read<AuthStore>();
-          final redirectRoute = await authStore.getRedirectRoute();
-          
-          if (mounted) {
-            setState(() {
-              _isCheckingRoute = false; // Hide loading
-            });
-            Navigator.pushReplacementNamed(context, redirectRoute);
-          }
+          setState(() {
+            _isCheckingRoute = false; // Hide loading
+          });
+          // Register qilingandan keyin to'g'ridan-to'g'ri payment page'ga o'tish
+          Navigator.pushReplacementNamed(context, '/plan');
         }
       },
     );

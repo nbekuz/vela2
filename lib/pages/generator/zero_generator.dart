@@ -5,19 +5,123 @@ import 'package:provider/provider.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/stores/auth_store.dart';
+import '../../core/services/revenuecat_service.dart';
 
 class ZeroGenerator extends StatefulWidget {
   final VoidCallback? onNext;
-  const ZeroGenerator({super.key, this.onNext});
+  const ZeroGenerator({
+    super.key,
+    this.onNext,
+  });
 
   @override
   State<ZeroGenerator> createState() => _ZeroGeneratorState();
 }
 
 class _ZeroGeneratorState extends State<ZeroGenerator> {
+  // Subscription info from RevenueCat
+  String? _subscriptionPlanType; // 'Monthly' or 'Annual'
+  DateTime? _trialEndDate;
+  bool _isLoadingSubscription = true;
+
+  // Product IDs for plan type detection
+  static const String _monthlyProductId = 'com.nbekdev.vela.monthly';
+  static const String _annualProductId = 'com.nbekdev.vela.annual';
+
   @override
   void initState() {
     super.initState();
+    _loadSubscriptionInfo();
+  }
+
+  /// Load subscription info from RevenueCat
+  Future<void> _loadSubscriptionInfo() async {
+    final revenueCatService = RevenueCatService();
+    if (!revenueCatService.isAvailable) {
+      setState(() {
+        _isLoadingSubscription = false;
+      });
+      return;
+    }
+
+    try {
+      final customerInfo = await revenueCatService.getCustomerInfo();
+      
+      // Get active entitlement
+      final activeEntitlements = customerInfo.entitlements.active;
+      if (activeEntitlements.isEmpty) {
+        print('⚠️ No active entitlements found');
+        setState(() {
+          _isLoadingSubscription = false;
+        });
+        return;
+      }
+
+      // Get first active entitlement
+      final entitlement = activeEntitlements.values.first;
+
+      // Get product identifier to determine plan type
+      final productIdentifier = entitlement.productIdentifier;
+      print('🔵 Product identifier: $productIdentifier');
+
+      // Determine plan type based on product ID
+      String? planType;
+      if (productIdentifier.contains('annual') ||
+          productIdentifier.contains('year') ||
+          productIdentifier == _annualProductId) {
+        planType = 'Annual';
+      } else if (productIdentifier.contains('month') ||
+          productIdentifier.contains('monthly') ||
+          productIdentifier == _monthlyProductId) {
+        planType = 'Monthly';
+      }
+
+      // Get expiration date (trial end date)
+      DateTime? trialEndDate;
+      final expirationDate = entitlement.expirationDate;
+      if (expirationDate != null) {
+        trialEndDate = DateTime.parse(expirationDate);
+        print('🔵 Trial end date: $trialEndDate');
+      }
+
+      if (mounted) {
+        setState(() {
+          _subscriptionPlanType = planType;
+          _trialEndDate = trialEndDate;
+          _isLoadingSubscription = false;
+        });
+      }
+
+      print(
+        '✅ Subscription info loaded: Plan=$planType, TrialEnd=$trialEndDate',
+      );
+    } catch (e) {
+      print('❌ Error loading subscription info: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingSubscription = false;
+        });
+      }
+    }
+  }
+
+  /// Format date for display
+  String _formatDate(DateTime date) {
+    final months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -64,6 +168,37 @@ class _ZeroGeneratorState extends State<ZeroGenerator> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // Compact subscription success info
+                if (!_isLoadingSubscription && _subscriptionPlanType != null && _trialEndDate != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Subscription Active',
+                          style: TextStyle(
+                            fontSize: 20.sp,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Satoshi',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$_subscriptionPlanType Plan • Trial ends ${_formatDate(_trialEndDate!)}',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: Colors.white.withOpacity(0.8),
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'Satoshi',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Text(

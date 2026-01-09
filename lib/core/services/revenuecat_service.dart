@@ -14,11 +14,11 @@ class RevenueCatService {
   bool _isAvailable = false;
   
   // Product IDs
-  static const String monthlyProductId = 'com.nbekdev.vela.month';
-  static const String annualProductId = 'com.nbekdev.vela.year';
+  static const String monthlyProductId = 'com.nbekdev.vela.monthly';
+  static const String annualProductId = 'com.nbekdev.vela.annual';
   
-  // API Key
-  static const String apiKey = 'test_VEfrZhcqcogvhEIgvabxJXMqKbt';
+  // API Key - Real device production key
+  static const String apiKey = 'appl_rzjbuzDneiamfPMllyZsHEMEmrg';
 
   /// Initialize RevenueCat
   Future<void> initialize() async {
@@ -162,7 +162,7 @@ class RevenueCatService {
       final customerInfo = await Purchases.getCustomerInfo();
       
       // Check for "Vela Pro" entitlement (preferred method)
-      final hasPro = customerInfo.entitlements.active.containsKey('Vela Pro');
+      final hasPro = customerInfo.entitlements.active.containsKey('velaPro');
       
       if (hasPro) {
         developer.log('✅ User has active "Vela Pro" entitlement');

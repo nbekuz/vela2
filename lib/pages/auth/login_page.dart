@@ -112,7 +112,7 @@ class _LoginPageState extends State<LoginPage> {
             setState(() {
               _isCheckingRoute = false; // Hide loading
             });
-            Navigator.pushReplacementNamed(context, redirectRoute);
+          Navigator.pushReplacementNamed(context, redirectRoute);
           }
         }
       },
@@ -174,7 +174,7 @@ class _LoginPageState extends State<LoginPage> {
             setState(() {
               _isCheckingRoute = false; // Hide loading
             });
-            Navigator.pushReplacementNamed(context, redirectRoute);
+          Navigator.pushReplacementNamed(context, redirectRoute);
           }
         }
       },
@@ -250,7 +250,7 @@ class _LoginPageState extends State<LoginPage> {
             setState(() {
               _isCheckingRoute = false; // Hide loading
             });
-            Navigator.pushReplacementNamed(context, redirectRoute);
+          Navigator.pushReplacementNamed(context, redirectRoute);
           }
         }
       },

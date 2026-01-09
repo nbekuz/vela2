@@ -65,20 +65,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Lock orientation to portrait only (no landscape)
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
-  
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
   // Force portrait mode and prevent any rotation
   SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.manual, 
-    overlays: SystemUiOverlay.values
+    SystemUiMode.manual,
+    overlays: SystemUiOverlay.values,
   );
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Initialize SuperwallKit for payments
   // Superwall API key from https://superwall.com/dashboard
@@ -90,22 +86,18 @@ void main() async {
       'SUPERWALL_API_KEY',
       defaultValue: 'pk_pJRetlpqb1kyNrf0WFCUQ', // Superwall API key
     );
-    
+
     if (superwallApiKey.isNotEmpty) {
       // Configure Superwall - this creates a shared instance
       Superwall.configure(superwallApiKey);
-      
+
       // Also initialize our service wrapper for additional functionality
       final superwallService = SuperwallService();
       await superwallService.initialize(superwallApiKey);
-      print('✅ SuperwallKit initialized successfully with API key');
-    } else {
-      print('⚠️ SuperwallKit API key not provided. Payment features will be disabled.');
     }
   } catch (e, stackTrace) {
     print('⚠️ Failed to initialize SuperwallKit: $e');
     print('🔵 Stack trace: $stackTrace');
-    // Continue app initialization even if SuperwallKit fails
   }
 
   // Initialize stores
@@ -123,10 +115,12 @@ void main() async {
     print('🔵 [main.dart] Starting RevenueCat initialization...');
     final revenueCatService = RevenueCatService();
     await revenueCatService.initialize();
-    
+
     // Check if initialization was successful
     if (revenueCatService.isAvailable) {
-      print('✅ [main.dart] RevenueCat initialized successfully and is available');
+      print(
+        '✅ [main.dart] RevenueCat initialized successfully and is available',
+      );
     } else {
       print('⚠️ [main.dart] RevenueCat initialized but is not available');
       print('⚠️ [main.dart] isInitialized: ${revenueCatService.isInitialized}');
@@ -203,7 +197,7 @@ class MyApp extends StatelessWidget {
             ]);
           });
         }
-        
+
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: const SystemUiOverlayStyle(
             statusBarColor: Colors.white,
@@ -233,7 +227,8 @@ class MyApp extends StatelessWidget {
                   theme: AppTheme.lightTheme.copyWith(
                     pageTransitionsTheme: const PageTransitionsTheme(
                       builders: {
-                        TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+                        TargetPlatform.android:
+                            NoAnimationPageTransitionsBuilder(),
                         TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
                       },
                     ),
@@ -241,7 +236,8 @@ class MyApp extends StatelessWidget {
                   darkTheme: AppTheme.darkTheme.copyWith(
                     pageTransitionsTheme: const PageTransitionsTheme(
                       builders: {
-                        TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+                        TargetPlatform.android:
+                            NoAnimationPageTransitionsBuilder(),
                         TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
                       },
                     ),
@@ -273,7 +269,9 @@ class MyApp extends StatelessWidget {
                     '/reminders': (context) => const RemindersPage(),
                     '/edit-info': (context) => const EditInfoPage(),
                     '/audio-player': (context) {
-                      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+                      final args =
+                          ModalRoute.of(context)?.settings.arguments
+                              as Map<String, dynamic>?;
                       return DashboardAudioPlayer(
                         meditationId: args?['meditationId'] ?? '',
                         title: args?['title'],

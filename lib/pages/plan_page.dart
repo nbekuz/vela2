@@ -3,17 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
-import '../styles/pages/plan_page_styles.dart';
-import 'components/plan_switch.dart';
-import 'components/plan_info_card.dart';
+import 'components/dream_life_intro_widget.dart';
+import 'components/plan_selection_content.dart';
+import 'components/plan_subtitle_widget.dart';
 import '../shared/widgets/auth.dart';
 import '../shared/widgets/exit_confirmation_dialog.dart';
 import '../shared/widgets/custom_toast.dart';
 import '../core/services/storekit_service.dart';
 import '../core/services/revenuecat_service.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-enum PlanStep { choosePlan, subscriptionSuccess, dreamLifeIntro }
+enum PlanStep { choosePlan, dreamLifeIntro }
 
 enum PlanType { annual, monthly }
 
@@ -27,15 +26,16 @@ class PlanPage extends StatefulWidget {
 class _PlanPageState extends State<PlanPage> {
   PlanStep _currentStep = PlanStep.choosePlan;
   PlanType _selectedPlan = PlanType.annual;
-  
+
   // StoreKit product IDs (from App Store Connect)
-  static const String _monthlyProductId = 'com.nbekdev.vela.month';
-  static const String _annualProductId = 'com.nbekdev.vela.year';
-  
+  static const String _monthlyProductId = 'com.nbekdev.vela.monthly';
+  static const String _annualProductId = 'com.nbekdev.vela.annual';
+
   // Purchase stream subscription (for StoreKit fallback)
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   bool _isPurchasing = false;
   bool _isRestoring = false;
+
 
   @override
   void initState() {
@@ -60,29 +60,31 @@ class _PlanPageState extends State<PlanPage> {
     }
   }
 
-  void _handleRevenueCatPurchaseUpdate(CustomerInfo customerInfo) {
+  void _handleRevenueCatPurchaseUpdate(CustomerInfo customerInfo) async {
     print('✅ RevenueCat purchase update received');
-    
+
     // Check if user has active entitlement
     final hasActiveEntitlement = customerInfo.entitlements.active.isNotEmpty;
-    
+
     if (hasActiveEntitlement) {
       print('✅ Purchase successful - user has active entitlement');
+
       if (mounted) {
         setState(() {
           _isPurchasing = false;
           _isRestoring = false;
         });
-        
-        // Navigate to success screen
-        setState(() {
-          _currentStep = PlanStep.subscriptionSuccess;
-        });
+
+        // Navigate directly to generator page (subscription info will be shown there)
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/generator');
+        }
       }
     } else {
       print('⚠️ No active entitlement found');
     }
   }
+
 
   void _setupPurchaseListener() {
     final InAppPurchase inAppPurchase = InAppPurchase.instance;
@@ -110,7 +112,9 @@ class _PlanPageState extends State<PlanPage> {
     );
   }
 
-  void _handlePurchaseUpdate(List<PurchaseDetails> purchaseDetailsList) {
+  Future<void> _handlePurchaseUpdate(
+    List<PurchaseDetails> purchaseDetailsList,
+  ) async {
     for (final PurchaseDetails purchaseDetails in purchaseDetailsList) {
       if (purchaseDetails.status == PurchaseStatus.pending) {
         print('⏳ Purchase pending...');
@@ -123,15 +127,13 @@ class _PlanPageState extends State<PlanPage> {
             _isRestoring = false;
           });
           // Show custom toast from top
-          final errorMessage = purchaseDetails.error?.message ?? 'Purchase failed';
+          final errorMessage =
+              purchaseDetails.error?.message ?? 'Purchase failed';
           if (purchaseDetails.error?.code == 'user_cancelled') {
             // Don't show error toast for user cancellation
             print('ℹ️ User cancelled the purchase');
           } else {
-            ToastService.showErrorToast(
-              context,
-              message: errorMessage,
-            );
+            ToastService.showErrorToast(context, message: errorMessage);
           }
         }
       } else if (purchaseDetails.status == PurchaseStatus.purchased ||
@@ -141,18 +143,15 @@ class _PlanPageState extends State<PlanPage> {
         if (purchaseDetails.pendingCompletePurchase) {
           InAppPurchase.instance.completePurchase(purchaseDetails);
         }
-        // Navigate to success screen immediately (CRITICAL for Apple review)
-        // This shows DARHOL that purchase was successful and subscription is active
         if (mounted) {
           setState(() {
             _isPurchasing = false;
             _isRestoring = false;
-            _currentStep = PlanStep.subscriptionSuccess;
           });
+          // Navigate directly to generator page (subscription info will be shown there)
+          Navigator.pushReplacementNamed(context, '/generator');
         }
       }
-      
-      // Complete the purchase if pending
       if (purchaseDetails.pendingCompletePurchase) {
         InAppPurchase.instance.completePurchase(purchaseDetails);
       }
@@ -161,7 +160,6 @@ class _PlanPageState extends State<PlanPage> {
 
   Future<void> _startFreeTrialWithStoreKit() async {
     if (_isPurchasing) {
-      print('⚠️ Purchase already in progress');
       return;
     }
 
@@ -171,86 +169,110 @@ class _PlanPageState extends State<PlanPage> {
       });
 
       final revenueCatService = RevenueCatService();
-      
-      // Try RevenueCat first
+
       if (revenueCatService.isAvailable) {
         print('🔵 Starting free trial with RevenueCat');
-        print('🔵 Selected plan: ${_selectedPlan == PlanType.annual ? "Annual" : "Monthly"}');
-        
+        print(
+          '🔵 Selected plan: ${_selectedPlan == PlanType.annual ? "Annual" : "Monthly"}',
+        );
+
         // Get offerings from RevenueCat with timeout handling
         Offerings? offerings;
         try {
           offerings = await Purchases.getOfferings().timeout(
             const Duration(seconds: 10),
             onTimeout: () {
-              throw Exception('Network timeout: Unable to connect to RevenueCat. Please check your internet connection.');
+              throw Exception(
+                'Network timeout: Unable to connect to RevenueCat. Please check your internet connection.',
+              );
             },
           );
         } catch (e) {
-          if (e.toString().contains('timeout') || e.toString().contains('NETWORK_ERROR')) {
-            print('⚠️ RevenueCat network timeout, falling back to StoreKit');
+          final errorString = e.toString().toLowerCase();
+          if (errorString.contains('timeout') ||
+              errorString.contains('network_error') ||
+              errorString.contains('configuration_error') ||
+              errorString.contains('no products registered') ||
+              errorString.contains('offerings empty')) {
+            print(
+              '⚠️ RevenueCat configuration/network issue, falling back to StoreKit',
+            );
+            print('⚠️ Error details: $e');
             // Fall through to StoreKit fallback
             offerings = null;
           } else {
             rethrow;
           }
         }
-        
+
         if (offerings == null || offerings.current == null) {
-          print('⚠️ No current offering found in RevenueCat, falling back to StoreKit');
+          print(
+            '⚠️ No current offering found in RevenueCat, falling back to StoreKit',
+          );
           // Fall through to StoreKit fallback below
         } else {
-
-        // Find the package based on selected plan
-        Package selectedPackage;
-        if (_selectedPlan == PlanType.annual) {
-          // Try to find annual package
-          try {
-            selectedPackage = offerings.current!.availablePackages.firstWhere(
-              (package) => package.identifier.contains('annual') || 
-                          package.identifier.contains('year') ||
-                          package.storeProduct.identifier == _annualProductId,
-            );
-          } catch (e) {
-            // Fallback to first package if not found
-            if (offerings.current!.availablePackages.isEmpty) {
-              throw Exception('No packages available in RevenueCat offering');
+          // Find the package based on selected plan
+          Package selectedPackage;
+          if (_selectedPlan == PlanType.annual) {
+            // Try to find annual package
+            try {
+              selectedPackage = offerings.current!.availablePackages.firstWhere(
+                (package) =>
+                    package.identifier.contains('annual') ||
+                    package.identifier.contains('year') ||
+                    package.storeProduct.identifier == _annualProductId,
+              );
+            } catch (e) {
+              // Fallback to first package if not found
+              if (offerings.current!.availablePackages.isEmpty) {
+                throw Exception('No packages available in RevenueCat offering');
+              }
+              selectedPackage = offerings.current!.availablePackages.first;
             }
-            selectedPackage = offerings.current!.availablePackages.first;
-          }
-        } else {
-          // Try to find monthly package
-          try {
-            selectedPackage = offerings.current!.availablePackages.firstWhere(
-              (package) => package.identifier.contains('month') ||
-                          package.storeProduct.identifier == _monthlyProductId,
-            );
-          } catch (e) {
-            // Fallback to first package if not found
-            if (offerings.current!.availablePackages.isEmpty) {
-              throw Exception('No packages available in RevenueCat offering');
+          } else {
+            // Try to find monthly package
+            try {
+              selectedPackage = offerings.current!.availablePackages.firstWhere(
+                (package) =>
+                    package.identifier.contains('month') ||
+                    package.storeProduct.identifier == _monthlyProductId,
+              );
+            } catch (e) {
+              // Fallback to first package if not found
+              if (offerings.current!.availablePackages.isEmpty) {
+                throw Exception('No packages available in RevenueCat offering');
+              }
+              selectedPackage = offerings.current!.availablePackages.first;
             }
-            selectedPackage = offerings.current!.availablePackages.first;
           }
-        }
 
-          print('✅ Found package: ${selectedPackage.identifier} - ${selectedPackage.storeProduct.price}');
+          print(
+            '✅ Found package: ${selectedPackage.identifier} - ${selectedPackage.storeProduct.price}',
+          );
 
           // Purchase the package with timeout handling
           try {
-            await revenueCatService.purchasePackage(selectedPackage).timeout(
-              const Duration(seconds: 30),
-              onTimeout: () {
-                throw Exception('Purchase timeout: Please try again.');
-              },
-            );
-            
+            await revenueCatService
+                .purchasePackage(selectedPackage)
+                .timeout(
+                  const Duration(seconds: 30),
+                  onTimeout: () {
+                    throw Exception('Purchase timeout: Please try again.');
+                  },
+                );
+
             print('✅ Purchase initiated successfully with RevenueCat');
             // Purchase completion will be handled by _handleRevenueCatPurchaseUpdate
             return;
           } catch (e) {
-            if (e.toString().contains('timeout') || e.toString().contains('NETWORK_ERROR')) {
-              print('⚠️ RevenueCat purchase timeout, falling back to StoreKit');
+            final errorString = e.toString().toLowerCase();
+            if (errorString.contains('timeout') ||
+                errorString.contains('network_error') ||
+                errorString.contains('configuration_error') ||
+                errorString.contains('no products registered') ||
+                errorString.contains('offerings empty')) {
+              print('⚠️ RevenueCat purchase error, falling back to StoreKit');
+              print('⚠️ Error details: $e');
               // Fall through to StoreKit fallback
             } else {
               rethrow;
@@ -262,29 +284,54 @@ class _PlanPageState extends State<PlanPage> {
       // Fallback to StoreKit if RevenueCat is not available
       print('⚠️ RevenueCat not available, falling back to StoreKit');
       final storeKitService = StoreKitService();
-      
+
       // Determine product ID based on selected plan
       final productId = _selectedPlan == PlanType.annual
           ? _annualProductId
           : _monthlyProductId;
 
       print('🔵 Starting free trial with StoreKit');
-      print('🔵 Selected plan: ${_selectedPlan == PlanType.annual ? "Annual" : "Monthly"}');
+      print(
+        '🔵 Selected plan: ${_selectedPlan == PlanType.annual ? "Annual" : "Monthly"}',
+      );
       print('🔵 Product ID: $productId');
 
       // Get products from StoreKit
+      print('🔵 Querying StoreKit for product: $productId');
       final products = await storeKitService.getProducts({productId});
 
       if (products.isEmpty) {
-        throw Exception('Product not found: $productId');
+        print('❌ StoreKit product not found: $productId');
+        print('⚠️ This might be because:');
+        print(
+          '   1. StoreKit Configuration File is not attached to the scheme in Xcode',
+        );
+        print(
+          '   2. App needs to be restarted after adding StoreKit Configuration File',
+        );
+        print('   3. Simulator needs to be restarted');
+        print('   4. Product ID mismatch between StoreKit Config and code');
+        print('');
+        print('📝 To fix:');
+        print('   1. Open Xcode → Product → Scheme → Edit Scheme');
+        print(
+          '   2. Run → Options → StoreKit Configuration → Select "Products.storekit"',
+        );
+        print('   3. Clean build folder (Shift+Cmd+K)');
+        print('   4. Restart Simulator and app');
+        throw Exception(
+          'Product not found: $productId. Please check StoreKit Configuration File setup in Xcode.',
+        );
       }
 
       final productDetails = products.first;
-      print('✅ Found product: ${productDetails.title} - ${productDetails.price}');
+      print(
+        '✅ Found product: ${productDetails.title} - ${productDetails.price}',
+      );
 
       // Purchase the product
       await storeKitService.purchaseProduct(productDetails);
-      
+
       print('✅ Purchase initiated successfully');
       // Purchase completion will be handled by _handlePurchaseUpdate
     } catch (e) {
@@ -293,24 +340,24 @@ class _PlanPageState extends State<PlanPage> {
         setState(() {
           _isPurchasing = false;
         });
-        
+
         String errorMessage = 'Failed to start free trial. Please try again.';
-        
+
         // Handle specific error types
         final errorString = e.toString().toLowerCase();
         if (errorString.contains('user_cancelled')) {
           print('ℹ️ User cancelled the purchase');
           return; // Don't show error for cancellation
-        } else if (errorString.contains('timeout') || errorString.contains('network_error')) {
-          errorMessage = 'Network timeout. Please check your internet connection and try again.';
-        } else if (errorString.contains('no current offering') || errorString.contains('no packages')) {
+        } else if (errorString.contains('timeout') ||
+            errorString.contains('network_error')) {
+          errorMessage =
+              'Network timeout. Please check your internet connection and try again.';
+        } else if (errorString.contains('no current offering') ||
+            errorString.contains('no packages')) {
           errorMessage = 'Subscription not available. Please try again later.';
         }
-        
-        ToastService.showErrorToast(
-          context,
-          message: errorMessage,
-        );
+
+        ToastService.showErrorToast(context, message: errorMessage);
       }
     }
   }
@@ -327,24 +374,23 @@ class _PlanPageState extends State<PlanPage> {
       });
 
       final revenueCatService = RevenueCatService();
-      
+
       // Try RevenueCat first
       if (revenueCatService.isAvailable) {
         print('🔵 Restoring purchases with RevenueCat');
         final customerInfo = await revenueCatService.restorePurchases();
-        
+
         // Check if restore was successful
-        if (customerInfo.entitlements.active.isNotEmpty || 
+        if (customerInfo.entitlements.active.isNotEmpty ||
             customerInfo.activeSubscriptions.isNotEmpty) {
           print('✅ Purchases restored successfully');
+
           if (mounted) {
             setState(() {
               _isRestoring = false;
             });
-            // Navigate to success screen
-            setState(() {
-              _currentStep = PlanStep.subscriptionSuccess;
-            });
+            // Navigate directly to generator page (subscription info will be shown there)
+            Navigator.pushReplacementNamed(context, '/generator');
           }
         } else {
           print('⚠️ No active purchases found to restore');
@@ -365,7 +411,7 @@ class _PlanPageState extends State<PlanPage> {
       print('⚠️ RevenueCat not available, falling back to StoreKit');
       final storeKitService = StoreKitService();
       await storeKitService.restorePurchases();
-      
+
       // Note: Restore results will come through _handlePurchaseUpdate
       // If no purchases found, we'll show a message after a timeout
       Future.delayed(const Duration(seconds: 2), () {
@@ -397,7 +443,8 @@ class _PlanPageState extends State<PlanPage> {
     ExitConfirmationDialog.show(
       context,
       title: 'Exit Plan Selection?',
-      message: 'Are you sure you want to exit? You can always come back to select your plan later.',
+      message:
+          'Are you sure you want to exit? You can always come back to select your plan later.',
     );
   }
 
@@ -411,344 +458,32 @@ class _PlanPageState extends State<PlanPage> {
     switch (_currentStep) {
       case PlanStep.choosePlan:
         title = 'Choose your plan';
-        subtitle = Column(
-          children: [
-            Column(
-          children: [
-            Text(
-              _selectedPlan == PlanType.annual
-                      ? 'First 3 days free, then \$49.99/year (\$4.17/month)'
-                  : 'First 3 days free, then \$9.99/month (\$120/year)',
-              style: PlanPageStyles.priceSub,
-              textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Free trial available. Subscription required to continue.',
-                  style: PlanPageStyles.priceSub.copyWith(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white.withOpacity(0.7),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'After trial you will be charged automatically. Cancel anytime in Settings.',
-                  style: PlanPageStyles.priceSub.copyWith(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white.withOpacity(0.6),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: PlanSwitch(
-                  selected: _selectedPlan,
-                  onChanged: (plan) => setState(() => _selectedPlan = plan),
-                ),
-              ),
-            ),
-          ],
-        );
-        child = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 10),
-            PlanInfoCard(),
-            const SizedBox(height: 20),
-            // Timeline, matnlar, stepper va h.k.
-            Padding(
-              padding: const EdgeInsets.only(top: 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _selectedPlan == PlanType.annual
-                        ? '\$49.99/year'
-                        : '\$9.99/month',
-                    style: PlanPageStyles.price,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    _selectedPlan == PlanType.annual
-                        ? '(\$4.17/month)'
-                        : '(\$120/year)',
-                    style: PlanPageStyles.priceSub,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3C6EAB),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 0,
-                ),
-                onPressed: (_isPurchasing || _isRestoring) ? null : () async {
-                  // Use StoreKit to purchase subscription
-                  await _startFreeTrialWithStoreKit();
-                },
-                child: _isPurchasing
-                    ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF2EFEA)),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Processing purchase...',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontFamily: 'Satoshi',
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFF2EFEA),
-                            ),
-                          ),
-                        ],
-                      )
-                    : const Text(
-                        'Start my free trial  ',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontFamily: 'Satoshi',
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFF2EFEA),
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Restore Purchases button - REQUIRED by Apple
-            TextButton(
-              onPressed: (_isPurchasing || _isRestoring) ? null : _restorePurchases,
-              child: _isRestoring
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Restoring purchases...',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 14,
-                            fontFamily: 'Satoshi',
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Text(
-                      'Restore Purchases',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 14,
-                        fontFamily: 'Satoshi',
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 30),
-          ],
-        );
-        onBack = _showExitDialog;
-        break;
-      case PlanStep.subscriptionSuccess:
-        title = '';
-        subtitle = null;
-        child = LayoutBuilder(
-          builder: (context, constraints) {
-            final screenHeight = MediaQuery.of(context).size.height;
-            final headerHeight = 200.0;
-            final bottomPadding = 40.0;
-            final contentHeight = screenHeight - headerHeight - bottomPadding;
-            final topPadding = contentHeight / 2 - 220;
-
-            return Center(
-              child: Container(
-                padding: EdgeInsets.fromLTRB(10, topPadding, 10, 0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Success icon
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3C6EAB).withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_circle,
-                        color: Color(0xFF3C6EAB),
-                        size: 60,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Text(
-                      'Subscription Active',
-                      style: PlanPageStyles.pageTitle.copyWith(
-                        fontSize: 32.sp,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Your free trial has started!\nYou can now generate your customized meditation experience.',
-                      style: PlanPageStyles.cardBody.copyWith(
-                        fontSize: 16.sp,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      height: 60,
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3C6EAB),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          elevation: 0,
-                        ),
-                        onPressed: () {
-                          // Navigate to generator page with pushReplacementNamed (clear stack)
-                          // This is CRITICAL for Apple review - clear navigation shows purchase worked
-                          Navigator.pushReplacementNamed(context, '/generator');
-                        },
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Continue',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontFamily: 'Satoshi',
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFF2EFEA),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward, color: Colors.white),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+        subtitle = PlanSubtitleWidget(
+          selectedPlan: _selectedPlan,
+          onPlanChanged: (plan) {
+            setState(() {
+              _selectedPlan = plan;
+            });
           },
         );
-        onBack = null; // No back button on success screen
+        child = PlanSelectionContent(
+          selectedPlan: _selectedPlan,
+          isPurchasing: _isPurchasing,
+          isRestoring: _isRestoring,
+          onPlanChanged: (plan) => setState(() => _selectedPlan = plan),
+          onStartFreeTrial: () async {
+            await _startFreeTrialWithStoreKit();
+          },
+          onRestorePurchases: _restorePurchases,
+        );
+        onBack = _showExitDialog;
         break;
       case PlanStep.dreamLifeIntro:
         title = '';
         subtitle = null;
-        child = LayoutBuilder(
-          builder: (context, constraints) {
-            final screenHeight = MediaQuery.of(context).size.height;
-            final headerHeight = 200.0; // Header balandligi (logo + padding)
-            final bottomPadding = 40.0; // Pastki padding (Terms uchun)
-            final contentHeight = screenHeight - headerHeight - bottomPadding;
-            final topPadding =
-                contentHeight / 2 - 220; // Content balandligi taxminan 300px
-
-            return Center(
-              child: Container(
-                padding: EdgeInsets.fromLTRB(10, topPadding, 10, 0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Set sail to your dream life',
-
-                      style: PlanPageStyles.pageTitle.copyWith(
-                        fontSize: 34.sp,
-                        color: Colors.white,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    Container(
-                      child: Text(
-                        'We will set up your profile based on your answers to generate your customized manifesting meditation experience, grounded in neuroscience, and tailored to you.',
-
-                        style: PlanPageStyles.cardBody.copyWith(
-                          fontSize: 15.sp,
-                          color: Colors.white,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      height: 60,
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3C6EAB),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          elevation: 0,
-                        ),
-                        onPressed: () {
-                          Navigator.pushReplacementNamed(context, '/generator');
-                        },
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Continue to Dream Life Intake',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontFamily: 'Satoshi',
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFF2EFEA),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward, color: Colors.white),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+        child = DreamLifeIntroWidget(
+          onContinue: () {
+            Navigator.pushReplacementNamed(context, '/generator');
           },
         );
         onBack = _showExitDialog;
